@@ -1,0 +1,13 @@
+## Interface: 110200, 50500, 50501, 40402, 30405, 11507
+## Title: Matt's Better Chat Sounds
+## Notes: Improved chat sounds for different chat types
+## Author: Seathasky
+## Version: 2.6
+## IconTexture: Interface\AddOns\MattBetterChatSounds\Images\BetterChatSounds
+## SavedVariables: MattBetterChatSoundsDB
+
+# Libraries (optional - for minimap icon in supported versions)
+## OptionalDeps: LibStub, LibDataBroker-1.1, LibDBIcon-1.0
+
+# Addon files
+MattBetterChatSounds.lua
