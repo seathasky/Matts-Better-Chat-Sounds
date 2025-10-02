@@ -8,6 +8,10 @@ Makes audio notifications when people type in chat so that you know they are typ
 
 You can now enable and disable individual sounds in options.
 
+## Installation
+
+Download from: https://www.curseforge.com/wow/addons/betterchatsounds
+
 ## Options
 
 Type `/mbcs` for options or use minimap icon.
