@@ -1,17 +1,21 @@
 # Matt's Better Chat Sounds
+[![Better Chat Sounds](https://media.forgecdn.net/attachments/1344/792/image-png.png)](https://www.curseforge.com/wow/addons/betterchatsounds)
 
-![Better Chat Sounds](https://media.forgecdn.net/attachments/1344/792/image-png.png)
+Simple, lightweight sound notifications for **Guild**, **Whisper**, **Party**, and **Raid** chat across **Retail (The War Within)**, **Mists of Pandaria Remix**, and **Classic Era/Hardcore**.
 
-Simple sound notifications for Guild, Whisper, Party and Raid chat for modern WoW (TWW), MoP and Classic Era/HC!
+---
 
-Makes audio notifications when people type in chat so that you know they are typing.
+## ✨ Features  
+- Plays notification sounds when players type in chat.  
+- Separate sounds for Guild, Whisper, Party, and Raid messages.  
+- Enable or disable individual sound types in the options menu.  
 
-You can now enable and disable individual sounds in options.
+---
 
-## Installation
+## 📦 Installation  
+👉 **[Install via CurseForge](https://www.curseforge.com/wow/addons/betterchatsounds)** 
 
-Download from: https://www.curseforge.com/wow/addons/betterchatsounds
+---
 
-## Options
-
-Type `/mbcs` for options or use minimap icon.
+## ⚙️ Options  
+Type `/mbcs` in chat or click the minimap icon to open the options menu.
