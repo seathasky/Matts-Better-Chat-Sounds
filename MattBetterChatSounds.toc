@@ -1,8 +1,8 @@
-## Interface: 110200, 50500, 50501, 40402, 30405, 11507
+## Interface: 11508, 11507, 20504, 30405, 40402, 50501, 50502, 110205, 110207, 120000
 ## Title: Matt's Better Chat Sounds
 ## Notes: Improved chat sounds for different chat types
 ## Author: Seathasky
-## Version: 2.6
+## Version: 2.7
 ## IconTexture: Interface\AddOns\MattBetterChatSounds\Images\BetterChatSounds
 ## SavedVariables: MattBetterChatSoundsDB
 
