@@ -114,8 +114,8 @@ frame:SetScript("OnEvent", function(self, event, ...)
     if event == "ADDON_LOADED" then return end
 
     local msg, sender = select(1, ...)
-    if not sender then return end
-    
+    -- Retail fix: sender can be a 'secret value' (not a string)
+    if type(sender) ~= "string" then return end
     local senderName = strsplit("-", sender)
     if senderName == UnitName("player") then return end
 
