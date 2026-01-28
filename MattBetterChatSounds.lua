@@ -80,47 +80,42 @@ end
 
 frame:RegisterEvent("ADDON_LOADED")
 frame:SetScript("OnEvent", function(self, event, ...)
-    if event == "ADDON_LOADED" and ... == addonName then
-        if not InitializeAddon() then
-            print("|cFFFF0000"..addonName.."|r: Failed to initialize. Some features may not work.")
-            return
-        end
+    if event == "ADDON_LOADED" then
+        local loadedAddon = ...
+        if loadedAddon == addonName then
+            if not InitializeAddon() then
+                return
+            end
 
-        -- Update the call to use addon's InitializeDatabase
-        addon.InitializeDatabase()
-        
-        -- Register minimap icon
-        if LDBIcon and not LDBIcon:IsRegistered(addonName) then
-            LDBIcon:Register(addonName, addon.ChatSoundsLDB, MattBetterChatSoundsDB)
-        end
+            -- Update the call to use addon's InitializeDatabase
+            addon.InitializeDatabase()
+            
+            -- Register minimap icon
+            if LDBIcon and not LDBIcon:IsRegistered(addonName) then
+                LDBIcon:Register(addonName, addon.ChatSoundsLDB, MattBetterChatSoundsDB)
+            end
 
-        -- Register chat events after successful initialization
-        self:RegisterEvent("CHAT_MSG_WHISPER")
-        -- Only register Battle.net whisper if it exists
-        if _G["CHAT_MSG_BN_WHISPER"] or (WOW_PROJECT_ID and WOW_PROJECT_ID == WOW_PROJECT_MAINLINE) then
-            self:RegisterEvent("CHAT_MSG_BN_WHISPER")
-        end
-        self:RegisterEvent("CHAT_MSG_PARTY")
-        self:RegisterEvent("CHAT_MSG_PARTY_LEADER")
-        self:RegisterEvent("CHAT_MSG_RAID")
-        self:RegisterEvent("CHAT_MSG_RAID_LEADER")
-        self:RegisterEvent("CHAT_MSG_GUILD")
+            -- Register chat events after successful initialization
+            self:RegisterEvent("CHAT_MSG_WHISPER")
+            -- Only register Battle.net whisper if it exists
+            if _G["CHAT_MSG_BN_WHISPER"] or (WOW_PROJECT_ID and WOW_PROJECT_ID == WOW_PROJECT_MAINLINE) then
+                self:RegisterEvent("CHAT_MSG_BN_WHISPER")
+            end
+            self:RegisterEvent("CHAT_MSG_PARTY")
+            self:RegisterEvent("CHAT_MSG_PARTY_LEADER")
+            self:RegisterEvent("CHAT_MSG_RAID")
+            self:RegisterEvent("CHAT_MSG_RAID_LEADER")
+            self:RegisterEvent("CHAT_MSG_GUILD")
 
-        print("|cFF00FF00"..addonName.."|r loaded! Type /mbcs to open options.")
-        self:UnregisterEvent("ADDON_LOADED")
+            print("|cFF00FF00"..addonName.."|r loaded! Type /mbcs to open options.")
+            self:UnregisterEvent("ADDON_LOADED")
+        end
         return
     end
 
-    if event == "ADDON_LOADED" then return end
-
-    local msg, sender = select(1, ...)
-    -- Retail fix: sender can be a 'secret value' (not a string)
-    if type(sender) ~= "string" then return end
-    local senderName = strsplit("-", sender)
-    if senderName == UnitName("player") then return end
-
+    -- Chat event handling
     local soundFiles = {
-        CHAT_MSG_WHISPER = "Interface\\AddOns\\MattBetterChatSounds\\Sounds\\whisper.ogg",
+        CHAT_MSG_WHISPER        = "Interface\\AddOns\\MattBetterChatSounds\\Sounds\\whisper.ogg",
         CHAT_MSG_BN_WHISPER     = "Interface\\AddOns\\MattBetterChatSounds\\Sounds\\whisper.ogg",
         CHAT_MSG_PARTY          = "Interface\\AddOns\\MattBetterChatSounds\\Sounds\\bcs.mp3",
         CHAT_MSG_PARTY_LEADER   = "Interface\\AddOns\\MattBetterChatSounds\\Sounds\\text.mp3",
@@ -128,8 +123,8 @@ frame:SetScript("OnEvent", function(self, event, ...)
         CHAT_MSG_RAID_LEADER    = "Interface\\AddOns\\MattBetterChatSounds\\Sounds\\text.mp3",
         CHAT_MSG_GUILD          = "Interface\\AddOns\\MattBetterChatSounds\\Sounds\\guild.mp3" 
     }
-    
-    if MattBetterChatSoundsDB[event] then
+
+    if soundFiles[event] and MattBetterChatSoundsDB[event] then
         PlaySoundFile(soundFiles[event], "Master")
     end
 end)

@@ -2,7 +2,7 @@
 ## Title: Matt's Better Chat Sounds
 ## Notes: Improved chat sounds for different chat types
 ## Author: Seathasky
-## Version: 2.8
+## Version: 2.9
 ## IconTexture: Interface\AddOns\MattBetterChatSounds\Images\BetterChatSounds
 ## SavedVariables: MattBetterChatSoundsDB
 
