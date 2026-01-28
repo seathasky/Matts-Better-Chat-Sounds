@@ -109,12 +109,16 @@ local chatFrame = CreateFrame("Frame")
 
 chatFrame:SetScript("OnEvent", function(self, event, message, sender, ...)
     -- Don't play sounds for our own messages
+    -- Note: In retail WoW, sender can be a "secret" value in combat/instances
+    -- which cannot be converted to string. We use pcall to safely handle this.
     local playerName = UnitName("player")
     if sender then
-        local senderName = Ambiguate(sender, "short")
-        if senderName == playerName then
+        local success, senderName = pcall(Ambiguate, sender, "short")
+        if success and senderName == playerName then
             return
         end
+        -- If pcall failed (secret value), we still play the sound
+        -- since we can't determine if it's from the player or not
     end
     
     PlayChatSound(event)
