@@ -1,251 +1,294 @@
+--[[
+    MattBetterChatSounds
+    Enhances chat by playing custom sounds for various chat events.
+    Compatible with Retail, Classic Era, and Classic (Cataclysm/Wrath/etc.)
+]]
+
+-- ============================================================================
+--  ADDON SETUP
+-- ============================================================================
 local addonName = "MattBetterChatSounds"
 MattBetterChatSounds = {}
 local addon = MattBetterChatSounds
 
-local LDB, LDBIcon
-local frame = CreateFrame("Frame")
+-- ============================================================================
+--  VERSION DETECTION
+-- ============================================================================
+local _, _, _, tocVersion = GetBuildInfo()
+local isRetail = (WOW_PROJECT_ID == WOW_PROJECT_MAINLINE)
+local isClassicEra = (WOW_PROJECT_ID == WOW_PROJECT_CLASSIC)  -- Classic Era Anniversary
+local isTBC = (WOW_PROJECT_ID == (WOW_PROJECT_BURNING_CRUSADE_CLASSIC or 5))  -- TBC Anniversary
+local isMoP = (WOW_PROJECT_ID == (WOW_PROJECT_MISTS_OF_PANDARIA_CLASSIC or 17))  -- MoP Remix
+local isClassic = isClassicEra or isTBC or isMoP
+local hasInstanceChat = isRetail or isMoP  -- Dungeon Finder available in MoP and Retail
+local hasBattleNet = isRetail  -- Battle.net whispers only in Retail
 
--- Move InitializeDatabase before it's called
+-- ============================================================================
+--  LIBRARIES (Optional)
+-- ============================================================================
+local LDB, LDBIcon
+
+-- ============================================================================
+--  SOUND FILES
+-- ============================================================================
+local SOUND_PATH = "Interface\\AddOns\\MattBetterChatSounds\\Sounds\\"
+
+-- Shared sound files (work on all versions)
+local soundFiles = {
+    CHAT_MSG_WHISPER        = SOUND_PATH .. "whisper.ogg",
+    CHAT_MSG_PARTY          = SOUND_PATH .. "bcs.mp3",
+    CHAT_MSG_PARTY_LEADER   = SOUND_PATH .. "text.mp3",
+    CHAT_MSG_RAID           = SOUND_PATH .. "bcs.mp3",
+    CHAT_MSG_RAID_LEADER    = SOUND_PATH .. "text.mp3",
+    CHAT_MSG_RAID_WARNING   = SOUND_PATH .. "text2.mp3",
+    CHAT_MSG_GUILD          = SOUND_PATH .. "guild.mp3",
+}
+
+-- Retail-only events
+if hasBattleNet then
+    soundFiles.CHAT_MSG_BN_WHISPER              = SOUND_PATH .. "whisper.ogg"
+end
+
+-- Instance chat (MoP, Retail) - Dungeon Finder available
+if hasInstanceChat then
+    soundFiles.CHAT_MSG_INSTANCE_CHAT           = SOUND_PATH .. "bcs.mp3"
+    soundFiles.CHAT_MSG_INSTANCE_CHAT_LEADER    = SOUND_PATH .. "text.mp3"
+end
+
+-- ============================================================================
+--  EVENT LABELS (for UI)
+-- ============================================================================
+local eventLabels = {
+    CHAT_MSG_WHISPER                = "Whisper Messages",
+    CHAT_MSG_BN_WHISPER             = "Battle.net Whispers",
+    CHAT_MSG_PARTY                  = "Party Chat",
+    CHAT_MSG_PARTY_LEADER           = "Party Leader Chat",
+    CHAT_MSG_RAID                   = "Raid Chat",
+    CHAT_MSG_RAID_LEADER            = "Raid Leader Chat",
+    CHAT_MSG_RAID_WARNING           = "Raid Warning",
+    CHAT_MSG_INSTANCE_CHAT          = "Instance Chat",
+    CHAT_MSG_INSTANCE_CHAT_LEADER   = "Instance Leader Chat",
+    CHAT_MSG_GUILD                  = "Guild Chat",
+}
+
+-- ============================================================================
+--  DATABASE INITIALIZATION
+-- ============================================================================
 local function InitializeDatabase()
-    if not MattBetterChatSoundsDB then
-        MattBetterChatSoundsDB = {}
-    end
+    MattBetterChatSoundsDB = MattBetterChatSoundsDB or {}
     
-    local events = {
-        { key = "CHAT_MSG_WHISPER", label = "Whisper Messages" },
-        { key = "CHAT_MSG_PARTY", label = "Party Chat" },
-        { key = "CHAT_MSG_PARTY_LEADER", label = "Party Leader Chat" },
-        { key = "CHAT_MSG_RAID", label = "Raid Chat" },
-        { key = "CHAT_MSG_RAID_LEADER", label = "Raid Leader Chat" },
-        { key = "CHAT_MSG_GUILD", label = "Guild Chat" }  
-    }
-    
-    -- Add Battle.net whisper only if it exists (retail/modern versions)
-    if _G["CHAT_MSG_BN_WHISPER"] or WOW_PROJECT_ID == WOW_PROJECT_MAINLINE then
-        table.insert(events, 2, { key = "CHAT_MSG_BN_WHISPER", label = "Battle.net Whisper Messages" })
-    end
-    
-    for _, eventData in ipairs(events) do
-        if MattBetterChatSoundsDB[eventData.key] == nil then
-            MattBetterChatSoundsDB[eventData.key] = true
+    -- Default all sounds to enabled
+    for eventKey in pairs(soundFiles) do
+        if MattBetterChatSoundsDB[eventKey] == nil then
+            MattBetterChatSoundsDB[eventKey] = true
         end
     end
 end
 addon.InitializeDatabase = InitializeDatabase
 
-local function InitializeAddon()
-    -- Check for LibStub (optional for minimap functionality)
-    if not LibStub then
-        print("|cFFFF9900"..addonName.."|r: LibStub not found. Minimap icon will not be available.")
-        return true -- Still allow addon to work without minimap
+-- ============================================================================
+--  SOUND PLAYBACK
+-- ============================================================================
+local function PlayChatSound(event)
+    local soundFile = soundFiles[event]
+    if not soundFile then return end
+    
+    -- Check if this sound is enabled
+    if MattBetterChatSoundsDB[event] == false then
+        return
     end
+    
+    -- Play the sound using Dialog channel (most reliable in instances)
+    PlaySoundFile(soundFile, "Dialog")
+end
 
-    -- Try to load libraries (optional)
-    local success, err = pcall(function()
-        LDB = LibStub:GetLibrary("LibDataBroker-1.1", true) -- true = silent mode
+-- ============================================================================
+--  CHAT EVENT HANDLING
+-- ============================================================================
+local chatFrame = CreateFrame("Frame")
+
+chatFrame:SetScript("OnEvent", function(self, event, message, sender, ...)
+    -- Don't play sounds for our own messages
+    local playerName = UnitName("player")
+    if sender then
+        local senderName = Ambiguate(sender, "short")
+        if senderName == playerName then
+            return
+        end
+    end
+    
+    PlayChatSound(event)
+end)
+
+-- Register all chat events for the current game version
+local function RegisterChatEvents()
+    for eventKey in pairs(soundFiles) do
+        chatFrame:RegisterEvent(eventKey)
+    end
+end
+
+RegisterChatEvents()
+
+-- ============================================================================
+--  MINIMAP BUTTON (Optional)
+-- ============================================================================
+local function InitializeMinimapButton()
+    if not LibStub then return false end
+    
+    local success = pcall(function()
+        LDB = LibStub:GetLibrary("LibDataBroker-1.1", true)
         LDBIcon = LibStub:GetLibrary("LibDBIcon-1.0", true)
     end)
-
+    
     if not success or not LDB or not LDBIcon then
-        print("|cFFFF9900"..addonName.."|r: DataBroker libraries not available. Minimap icon disabled.")
-        LDB = nil
-        LDBIcon = nil
-        return true -- Still allow addon to work
+        return false
     end
-
-    -- Create LDB object only if libraries are available
-    if LDB then
-        addon.ChatSoundsLDB = LDB:NewDataObject(addonName, {
-            type = "launcher",
-            text = "Matt Better Chat Sounds",
-            icon = "Interface\\AddOns\\MattBetterChatSounds\\Images\\BetterChatSounds.tga",
-            OnClick = function(_, button)
-                if button == "LeftButton" then
-                    if addon.ToggleOptions then
-                        addon:ToggleOptions()
-                    else
-                        print("Error: GUI function not found")
-                    end
-                end
-            end,
-            OnTooltipShow = function(tooltip)
-                tooltip:AddLine("Matt Better Chat Sounds")
-                tooltip:AddLine("|cffffff00Left-click|r to open settings.")
-            end,
-        })
+    
+    addon.ChatSoundsLDB = LDB:NewDataObject(addonName, {
+        type = "launcher",
+        text = "Matt Better Chat Sounds",
+        icon = "Interface\\AddOns\\MattBetterChatSounds\\Images\\BetterChatSounds.tga",
+        OnClick = function(_, button)
+            if button == "LeftButton" then
+                addon:ToggleOptions()
+            end
+        end,
+        OnTooltipShow = function(tooltip)
+            tooltip:AddLine("Matt Better Chat Sounds")
+            tooltip:AddLine("|cffffff00Left-click|r to open settings")
+        end,
+    })
+    
+    if not LDBIcon:IsRegistered(addonName) then
+        LDBIcon:Register(addonName, addon.ChatSoundsLDB, MattBetterChatSoundsDB)
     end
-
+    
     return true
 end
 
-frame:RegisterEvent("ADDON_LOADED")
-frame:SetScript("OnEvent", function(self, event, ...)
-    if event == "ADDON_LOADED" then
-        local loadedAddon = ...
-        if loadedAddon == addonName then
-            if not InitializeAddon() then
-                return
-            end
-
-            -- Update the call to use addon's InitializeDatabase
-            addon.InitializeDatabase()
-            
-            -- Register minimap icon
-            if LDBIcon and not LDBIcon:IsRegistered(addonName) then
-                LDBIcon:Register(addonName, addon.ChatSoundsLDB, MattBetterChatSoundsDB)
-            end
-
-            -- Register chat events after successful initialization
-            self:RegisterEvent("CHAT_MSG_WHISPER")
-            -- Only register Battle.net whisper if it exists
-            if _G["CHAT_MSG_BN_WHISPER"] or (WOW_PROJECT_ID and WOW_PROJECT_ID == WOW_PROJECT_MAINLINE) then
-                self:RegisterEvent("CHAT_MSG_BN_WHISPER")
-            end
-            self:RegisterEvent("CHAT_MSG_PARTY")
-            self:RegisterEvent("CHAT_MSG_PARTY_LEADER")
-            self:RegisterEvent("CHAT_MSG_RAID")
-            self:RegisterEvent("CHAT_MSG_RAID_LEADER")
-            self:RegisterEvent("CHAT_MSG_GUILD")
-
-            print("|cFF00FF00"..addonName.."|r loaded! Type /mbcs to open options.")
-            self:UnregisterEvent("ADDON_LOADED")
-        end
-        return
-    end
-
-    -- Chat event handling
-    local soundFiles = {
-        CHAT_MSG_WHISPER        = "Interface\\AddOns\\MattBetterChatSounds\\Sounds\\whisper.ogg",
-        CHAT_MSG_BN_WHISPER     = "Interface\\AddOns\\MattBetterChatSounds\\Sounds\\whisper.ogg",
-        CHAT_MSG_PARTY          = "Interface\\AddOns\\MattBetterChatSounds\\Sounds\\bcs.mp3",
-        CHAT_MSG_PARTY_LEADER   = "Interface\\AddOns\\MattBetterChatSounds\\Sounds\\text.mp3",
-        CHAT_MSG_RAID           = "Interface\\AddOns\\MattBetterChatSounds\\Sounds\\text2.mp3",
-        CHAT_MSG_RAID_LEADER    = "Interface\\AddOns\\MattBetterChatSounds\\Sounds\\text.mp3",
-        CHAT_MSG_GUILD          = "Interface\\AddOns\\MattBetterChatSounds\\Sounds\\guild.mp3" 
-    }
-
-    if soundFiles[event] and MattBetterChatSoundsDB[event] then
-        PlaySoundFile(soundFiles[event], "Master")
-    end
+-- ============================================================================
+--  ADDON LOADED
+-- ============================================================================
+local loadFrame = CreateFrame("Frame")
+loadFrame:RegisterEvent("ADDON_LOADED")
+loadFrame:SetScript("OnEvent", function(self, event, loadedAddon)
+    if loadedAddon ~= addonName then return end
+    
+    InitializeDatabase()
+    InitializeMinimapButton()
+    
+    self:UnregisterEvent("ADDON_LOADED")
 end)
 
+-- ============================================================================
+--  OPTIONS UI
+-- ============================================================================
 function MattBetterChatSounds:ToggleOptions()
-    -- Toggle if already open
     if self.optionsFrame then
-        if self.optionsFrame:IsShown() then
-            self.optionsFrame:Hide()
-        else
-            self.optionsFrame:Show()
-        end
+        self.optionsFrame:SetShown(not self.optionsFrame:IsShown())
         return
     end
-
-    local events = {
-        { key = "CHAT_MSG_WHISPER", label = "Whisper Messages" },
-        { key = "CHAT_MSG_PARTY", label = "Party Chat" },
-        { key = "CHAT_MSG_PARTY_LEADER", label = "Party Leader Chat" },
-        { key = "CHAT_MSG_RAID", label = "Raid Chat" },
-        { key = "CHAT_MSG_RAID_LEADER", label = "Raid Leader Chat" },
-        { key = "CHAT_MSG_GUILD", label = "Guild Chat" }  
+    
+    -- Create main frame
+    local f = CreateFrame("Frame", "MattBetterChatSoundsOptionsFrame", UIParent, "BasicFrameTemplateWithInset")
+    f:SetSize(450, 500)
+    f:SetPoint("CENTER")
+    f:SetMovable(true)
+    f:EnableMouse(true)
+    f:RegisterForDrag("LeftButton")
+    f:SetScript("OnDragStart", f.StartMoving)
+    f:SetScript("OnDragStop", f.StopMovingOrSizing)
+    f:SetFrameStrata("DIALOG")
+    
+    self.optionsFrame = f
+    
+    -- Title
+    local title = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
+    title:SetPoint("TOP", 0, -35)
+    title:SetText("Matt's Better Chat Sounds")
+    title:SetTextColor(1, 0.82, 0)
+    
+    -- Description
+    local desc = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    desc:SetPoint("TOP", title, "BOTTOM", 0, -15)
+    desc:SetWidth(400)
+    desc:SetText("Enable or disable sounds for different chat types.\nSounds play through the Dialog audio channel.")
+    
+    -- Build ordered list of events (only show events available for this version)
+    local orderedEvents = {
+        "CHAT_MSG_WHISPER",
+        "CHAT_MSG_BN_WHISPER",
+        "CHAT_MSG_PARTY",
+        "CHAT_MSG_PARTY_LEADER",
+        "CHAT_MSG_INSTANCE_CHAT",
+        "CHAT_MSG_INSTANCE_CHAT_LEADER",
+        "CHAT_MSG_RAID",
+        "CHAT_MSG_RAID_LEADER",
+        "CHAT_MSG_RAID_WARNING",
+        "CHAT_MSG_GUILD",
     }
     
-    -- Add Battle.net whisper only if it exists (retail/modern versions)
-    if _G["CHAT_MSG_BN_WHISPER"] or (WOW_PROJECT_ID and WOW_PROJECT_ID == WOW_PROJECT_MAINLINE) then
-        table.insert(events, 2, { key = "CHAT_MSG_BN_WHISPER", label = "Battle.net Whisper Messages" })
-    end
-
-    -- Create UI frame with error handling
-    local success, result = pcall(function()
-            -- Use more compatible frame template
-            local template = "BasicFrameTemplateWithInset"
-            if not _G[template] then
-                template = "BasicFrameTemplate" -- Fallback for older versions
-            end
+    -- Create checkboxes
+    local yOffset = -100
+    for _, eventKey in ipairs(orderedEvents) do
+        -- Only show options for events available in this version
+        if soundFiles[eventKey] then
+            local label = eventLabels[eventKey] or eventKey
             
-            local f = CreateFrame("Frame", "MattBetterChatSoundsOptionsFrame", UIParent, template)
-            f:SetSize(450, 450)
-            f:SetPoint("CENTER")
-            f:SetMovable(true)
-            f:EnableMouse(true)
-            f:RegisterForDrag("LeftButton")
-            f:SetScript("OnDragStart", f.StartMoving)
-            f:SetScript("OnDragStop", f.StopMovingOrSizing)
-
-            -- Title text
-            local title = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
-            title:SetPoint("TOP", f, "TOP", 0, -35)
-            title:SetText("Matt's Better Chat Sounds")
-            title:SetTextColor(1, 0.82, 0) -- Gold color
+            local checkbox = CreateFrame("CheckButton", nil, f, "InterfaceOptionsCheckButtonTemplate")
+            checkbox:SetPoint("TOPLEFT", 40, yOffset)
+            checkbox.Text:SetText(label)
+            checkbox.Text:SetFontObject("GameFontNormal")
             
-            -- Description text
-            local description = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-            description:SetPoint("TOP", title, "BOTTOM", 0, -20)
-            description:SetWidth(400)
-            description:SetJustifyH("CENTER")
-            description:SetText("Customize chat sounds for different message types.\nEnable or disable sounds by checking the boxes below.")
-            description:SetTextColor(0.9, 0.9, 0.9)
-            
-            -- Separator line
-            local separator = f:CreateTexture(nil, "ARTWORK")
-            separator:SetTexture("Interface\\Common\\UI-TooltipDivider-Transparent")
-            separator:SetSize(380, 8)
-            separator:SetPoint("TOP", description, "BOTTOM", 0, -20)
-            
-            return f
-    end)
-
-    if success and result then
-        local frame = result
-        self.optionsFrame = frame
-
-        local yOffset = -130 -- Start below the separator with generous space
-        for i, eventData in ipairs(events) do
-            local checkButtonName = "MBChS_CheckButton_" .. eventData.key
-            local checkbox = CreateFrame("CheckButton", checkButtonName, frame, "ChatConfigCheckButtonTemplate")
-            checkbox:SetPoint("TOPLEFT", frame, "TOPLEFT", 40, yOffset)
-            checkbox:SetScale(1.1) -- Make checkboxes slightly larger
-            
-            -- Access the check button's text region (named "Text" with an uppercase "T")
-            local label = _G[checkButtonName.."Text"]
-            label:SetText(eventData.label or eventData.key)
-            label:SetFont("Fonts\\FRIZQT__.TTF", 12, "OUTLINE")
-            label:SetTextColor(1, 1, 1) -- White text
-            
-            checkbox:SetChecked(MattBetterChatSoundsDB[eventData.key] ~= false)
+            checkbox:SetChecked(MattBetterChatSoundsDB[eventKey] ~= false)
             checkbox:SetScript("OnClick", function(self)
-                local checked = self:GetChecked()
-                MattBetterChatSoundsDB[eventData.key] = checked
+                MattBetterChatSoundsDB[eventKey] = self:GetChecked()
             end)
             
-            -- Add hover effect
-            checkbox:SetScript("OnEnter", function(self)
-                _G[checkButtonName.."Text"]:SetTextColor(1, 0.82, 0) -- Gold on hover
-            end)
-            checkbox:SetScript("OnLeave", function(self)
-                _G[checkButtonName.."Text"]:SetTextColor(1, 1, 1) -- White when not hovering
+            -- Test button for this sound
+            local testBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+            testBtn:SetSize(50, 22)
+            testBtn:SetPoint("LEFT", checkbox.Text, "RIGHT", 10, 0)
+            testBtn:SetText("Test")
+            testBtn:SetScript("OnClick", function()
+                local soundFile = soundFiles[eventKey]
+                if soundFile then
+                    PlaySoundFile(soundFile, "Dialog")
+                end
             end)
             
-            yOffset = yOffset - 35
+            yOffset = yOffset - 32
         end
-
-        local closeButton = CreateFrame("Button", nil, frame, "GameMenuButtonTemplate")
-        closeButton:SetPoint("BOTTOM", frame, "BOTTOM", 0, 20)
-        closeButton:SetSize(100, 25)
-        closeButton:SetText("Close")
-        closeButton:SetScript("OnClick", function() frame:Hide() end)
-    else
-        print("|cFFFF0000"..addonName.."|r: Failed to create options interface:", result)
-        return
     end
+    
+    -- Close button
+    local closeBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    closeBtn:SetSize(100, 25)
+    closeBtn:SetPoint("BOTTOM", 0, 15)
+    closeBtn:SetText("Close")
+    closeBtn:SetScript("OnClick", function() f:Hide() end)
+    
+    f:Show()
 end
 
-
--- Chat command registration for /mbcs to open settings
+-- ============================================================================
+--  SLASH COMMANDS
+-- ============================================================================
 SLASH_MATTBETTERCHATSOUNDS1 = "/mbcs"
+SLASH_MATTBETTERCHATSOUNDS2 = "/mattbetterchatsounds"
 SlashCmdList["MATTBETTERCHATSOUNDS"] = function(msg)
-    if MattBetterChatSounds and MattBetterChatSounds.ToggleOptions then
-        MattBetterChatSounds:ToggleOptions()
+    msg = (msg or ""):lower():trim()
+    
+    if msg == "test" then
+        PlaySoundFile(SOUND_PATH .. "bcs.mp3", "Dialog")
+    elseif msg == "status" then
+        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00MBCS|r: Sound Status:")
+        for eventKey in pairs(soundFiles) do
+            local label = eventLabels[eventKey] or eventKey
+            local enabled = MattBetterChatSoundsDB[eventKey] ~= false
+            DEFAULT_CHAT_FRAME:AddMessage("  " .. label .. ": " .. (enabled and "|cFF00FF00ON|r" or "|cFFFF0000OFF|r"))
+        end
     else
-        print("Error: Options not available.")
+        addon:ToggleOptions()
     end
 end
