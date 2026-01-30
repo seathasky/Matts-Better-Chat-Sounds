@@ -1,7 +1,7 @@
 # Matt's Better Chat Sounds
 [![Better Chat Sounds](https://media.forgecdn.net/attachments/1344/792/image-png.png)](https://www.curseforge.com/wow/addons/betterchatsounds)
 
-Simple, lightweight sound notifications for **Guild**, **Whisper**, **Party**, and **Raid** chat across **Retail (Midnight)**, **Mists of Pandaria Remix**, and **Classic Era/Hardcore**.
+Simple, lightweight sound notifications for **Guild**, **Whisper**, **Party**, and **Raid** chat across **Retail (Midnight)**, **Mists of Pandaria**, **Classic Era/Hardcore and TBC**.
 
 ---
 
