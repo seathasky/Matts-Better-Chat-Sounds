@@ -83,6 +83,11 @@ local function InitializeDatabase()
             MattBetterChatSoundsDB[eventKey] = true
         end
     end
+    
+    -- Initialize minimap icon settings (LibDBIcon convention)
+    if MattBetterChatSoundsDB.minimapIcon == nil then
+        MattBetterChatSoundsDB.minimapIcon = { hide = false }
+    end
 end
 addon.InitializeDatabase = InitializeDatabase
 
@@ -155,19 +160,58 @@ local function InitializeMinimapButton()
         OnClick = function(_, button)
             if button == "LeftButton" then
                 addon:ToggleOptions()
+            elseif button == "RightButton" then
+                -- Toggle minimap button visibility
+                addon:ToggleMinimapButton()
             end
         end,
         OnTooltipShow = function(tooltip)
             tooltip:AddLine("Matt Better Chat Sounds")
             tooltip:AddLine("|cffffff00Left-click|r to open settings")
+            tooltip:AddLine("|cffffff00Right-click|r to hide minimap button")
         end,
     })
     
     if not LDBIcon:IsRegistered(addonName) then
-        LDBIcon:Register(addonName, addon.ChatSoundsLDB, MattBetterChatSoundsDB)
+        LDBIcon:Register(addonName, addon.ChatSoundsLDB, MattBetterChatSoundsDB.minimapIcon)
     end
     
     return true
+end
+
+-- Toggle minimap button visibility
+function addon:ToggleMinimapButton()
+    if not LDBIcon then return end
+    
+    MattBetterChatSoundsDB.minimapIcon = MattBetterChatSoundsDB.minimapIcon or { hide = false }
+    MattBetterChatSoundsDB.minimapIcon.hide = not MattBetterChatSoundsDB.minimapIcon.hide
+    
+    if MattBetterChatSoundsDB.minimapIcon.hide then
+        LDBIcon:Hide(addonName)
+        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00MBCS|r: Minimap button hidden. Type |cffffff00/mbcs|r to open settings.")
+    else
+        LDBIcon:Show(addonName)
+    end
+    
+    -- Update checkbox if options frame is open
+    if self.optionsFrame and self.minimapCheckbox then
+        self.minimapCheckbox:SetChecked(not MattBetterChatSoundsDB.minimapIcon.hide)
+    end
+end
+
+-- Set minimap button visibility (for checkbox)
+function addon:SetMinimapButtonShown(show)
+    if not LDBIcon then return end
+    
+    MattBetterChatSoundsDB.minimapIcon = MattBetterChatSoundsDB.minimapIcon or { hide = false }
+    MattBetterChatSoundsDB.minimapIcon.hide = not show
+    
+    if show then
+        LDBIcon:Show(addonName)
+    else
+        LDBIcon:Hide(addonName)
+        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00MBCS|r: Minimap button hidden. Type |cffffff00/mbcs|r to open settings.")
+    end
 end
 
 -- ============================================================================
@@ -272,6 +316,22 @@ function MattBetterChatSounds:ToggleOptions()
     closeBtn:SetText("Close")
     closeBtn:SetScript("OnClick", function() f:Hide() end)
     
+    -- Minimap button toggle (only show if LibDBIcon is available)
+    if LDBIcon then
+        local minimapCheckbox = CreateFrame("CheckButton", nil, f, "InterfaceOptionsCheckButtonTemplate")
+        minimapCheckbox:SetPoint("BOTTOMLEFT", 40, 45)
+        minimapCheckbox.Text:SetText("Show Minimap Button")
+        minimapCheckbox.Text:SetFontObject("GameFontNormal")
+        
+        minimapCheckbox:SetChecked(not (MattBetterChatSoundsDB.minimapIcon and MattBetterChatSoundsDB.minimapIcon.hide))
+        minimapCheckbox:SetScript("OnClick", function(self)
+            addon:SetMinimapButtonShown(self:GetChecked())
+        end)
+        
+        -- Store reference for updating from right-click toggle
+        self.minimapCheckbox = minimapCheckbox
+    end
+    
     f:Show()
 end
 
@@ -292,6 +352,21 @@ SlashCmdList["MATTBETTERCHATSOUNDS"] = function(msg)
             local enabled = MattBetterChatSoundsDB[eventKey] ~= false
             DEFAULT_CHAT_FRAME:AddMessage("  " .. label .. ": " .. (enabled and "|cFF00FF00ON|r" or "|cFFFF0000OFF|r"))
         end
+    elseif msg == "minimap" then
+        addon:ToggleMinimapButton()
+    elseif msg == "showminimap" then
+        addon:SetMinimapButtonShown(true)
+        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00MBCS|r: Minimap button shown.")
+    elseif msg == "hideminimap" then
+        addon:SetMinimapButtonShown(false)
+    elseif msg == "help" then
+        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00MBCS|r: Commands:")
+        DEFAULT_CHAT_FRAME:AddMessage("  |cffffff00/mbcs|r - Open settings")
+        DEFAULT_CHAT_FRAME:AddMessage("  |cffffff00/mbcs test|r - Play test sound")
+        DEFAULT_CHAT_FRAME:AddMessage("  |cffffff00/mbcs status|r - Show sound status")
+        DEFAULT_CHAT_FRAME:AddMessage("  |cffffff00/mbcs minimap|r - Toggle minimap button")
+        DEFAULT_CHAT_FRAME:AddMessage("  |cffffff00/mbcs showminimap|r - Show minimap button")
+        DEFAULT_CHAT_FRAME:AddMessage("  |cffffff00/mbcs hideminimap|r - Hide minimap button")
     else
         addon:ToggleOptions()
     end
