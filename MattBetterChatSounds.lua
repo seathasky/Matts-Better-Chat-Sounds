@@ -1,19 +1,9 @@
---[[
-    MattBetterChatSounds
-    Enhances chat by playing custom sounds for various chat events.
-    Compatible with Retail, Classic Era, and Classic (Cataclysm/Wrath/etc.)
-]]
 
--- ============================================================================
---  ADDON SETUP
--- ============================================================================
 local addonName = "MattBetterChatSounds"
 MattBetterChatSounds = {}
 local addon = MattBetterChatSounds
 
--- ============================================================================
---  VERSION DETECTION
--- ============================================================================
+
 local _, _, _, tocVersion = GetBuildInfo()
 local isRetail = (WOW_PROJECT_ID == WOW_PROJECT_MAINLINE)
 local isClassicEra = (WOW_PROJECT_ID == WOW_PROJECT_CLASSIC)  -- Classic Era Anniversary
@@ -23,19 +13,13 @@ local isClassic = isClassicEra or isTBC or isMoP
 local hasInstanceChat = isRetail or isMoP  -- Dungeon Finder available in MoP and Retail
 local hasBattleNet = isRetail  -- Battle.net whispers only in Retail
 
--- ============================================================================
---  LIBRARIES (Optional)
--- ============================================================================
+
 local LDB, LDBIcon
 
--- ============================================================================
---  SOUND FILES
--- ============================================================================
 local SOUND_PATH = "Interface\\AddOns\\MattBetterChatSounds\\Sounds\\"
 local NAO_FONT_PATH = "Interface\\AddOns\\MattBetterChatSounds\\Media\\Naowh.ttf"
 local FONT_SIZES = { title = 18, normal = 12, small = 11 }
 
--- Shared sound files (work on all versions)
 local soundFiles = {
     CHAT_MSG_WHISPER        = SOUND_PATH .. "whisper.ogg",
     CHAT_MSG_PARTY          = SOUND_PATH .. "bcs.mp3",
@@ -46,20 +30,15 @@ local soundFiles = {
     CHAT_MSG_GUILD          = SOUND_PATH .. "guild.mp3",
 }
 
--- Retail-only events
 if hasBattleNet then
     soundFiles.CHAT_MSG_BN_WHISPER              = SOUND_PATH .. "whisper.ogg"
 end
 
--- Instance chat (MoP, Retail) - Dungeon Finder available
 if hasInstanceChat then
     soundFiles.CHAT_MSG_INSTANCE_CHAT           = SOUND_PATH .. "bcs.mp3"
     soundFiles.CHAT_MSG_INSTANCE_CHAT_LEADER    = SOUND_PATH .. "text.mp3"
 end
 
--- ============================================================================
---  EVENT LABELS (for UI)
--- ============================================================================
 local eventLabels = {
     CHAT_MSG_WHISPER                = "Whisper Messages",
     CHAT_MSG_BN_WHISPER             = "Battle.net Whispers",
@@ -72,21 +51,15 @@ local eventLabels = {
     CHAT_MSG_INSTANCE_CHAT_LEADER   = "Instance Leader Chat",
     CHAT_MSG_GUILD                  = "Guild Chat",
 }
-
--- ============================================================================
---  DATABASE INITIALIZATION
--- ============================================================================
 local function InitializeDatabase()
     MattBetterChatSoundsDB = MattBetterChatSoundsDB or {}
     
-    -- Default all sounds to enabled
     for eventKey in pairs(soundFiles) do
         if MattBetterChatSoundsDB[eventKey] == nil then
             MattBetterChatSoundsDB[eventKey] = true
         end
     end
     
-    -- Initialize minimap icon settings (LibDBIcon convention)
     if MattBetterChatSoundsDB.minimapIcon == nil then
         MattBetterChatSoundsDB.minimapIcon = { hide = false }
     end
@@ -100,12 +73,10 @@ local function PlayChatSound(event)
     local soundFile = soundFiles[event]
     if not soundFile then return end
     
-    -- Check if this sound is enabled
     if MattBetterChatSoundsDB[event] == false then
         return
     end
     
-    -- Play the sound using Dialog channel (most reliable in instances)
     PlaySoundFile(soundFile, "Dialog")
 end
 
@@ -115,23 +86,19 @@ end
 local chatFrame = CreateFrame("Frame")
 
 chatFrame:SetScript("OnEvent", function(self, event, message, sender, ...)
-    -- Don't play sounds for our own messages
-    -- Note: In retail WoW, sender can be a "secret" value in combat/instances
-    -- which cannot be converted to string. We use pcall to safely handle this.
+
     local playerName = UnitName("player")
     if sender then
         local success, senderName = pcall(Ambiguate, sender, "short")
         if success and senderName == playerName then
             return
         end
-        -- If pcall failed (secret value), we still play the sound
-        -- since we can't determine if it's from the player or not
+
     end
     
     PlayChatSound(event)
 end)
 
--- Register all chat events for the current game version
 local function RegisterChatEvents()
     for eventKey in pairs(soundFiles) do
         chatFrame:RegisterEvent(eventKey)
@@ -140,17 +107,13 @@ end
 
 RegisterChatEvents()
 
--- ============================================================================
---  MINIMAP BUTTON (Optional)
--- ============================================================================
+
 local function InitializeMinimapButton()
-    -- Try to get libraries from LibStub first
     if LibStub then
         LDB = LibStub:GetLibrary("LibDataBroker-1.1", true)
         LDBIcon = LibStub:GetLibrary("LibDBIcon-1.0", true)
     end
-    
-    -- If we got both libraries, use the proper LDB approach
+
     if LDB and LDBIcon then
         addon.ChatSoundsLDB = LDB:NewDataObject(addonName, {
             type = "launcher",
@@ -177,7 +140,6 @@ local function InitializeMinimapButton()
         return true
     end
     
-    -- Fallback: Create a draggable minimap button if libraries aren't available
     local rad, cos, sin = math.rad, math.cos, math.sin
     local function UpdateMinimapButtonPosition(button, angle)
         local radian = rad(angle or 225)
@@ -197,7 +159,6 @@ local function InitializeMinimapButton()
     minimapFrame:RegisterForDrag("LeftButton")
     minimapFrame:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
     
-    -- Store saved position angle (default 225 degrees = bottom-left)
     MattBetterChatSoundsDB.minimapPos = MattBetterChatSoundsDB.minimapPos or 225
     UpdateMinimapButtonPosition(minimapFrame, MattBetterChatSoundsDB.minimapPos)
     
@@ -319,9 +280,7 @@ function addon:SetMinimapButtonShown(show)
     end
 end
 
--- ============================================================================
---  ADDON LOADED
--- ============================================================================
+
 local loadFrame = CreateFrame("Frame")
 loadFrame:RegisterEvent("ADDON_LOADED")
 loadFrame:SetScript("OnEvent", function(self, event, loadedAddon)
@@ -333,16 +292,12 @@ loadFrame:SetScript("OnEvent", function(self, event, loadedAddon)
     self:UnregisterEvent("ADDON_LOADED")
 end)
 
--- ============================================================================
---  OPTIONS UI
--- ============================================================================
 function MattBetterChatSounds:ToggleOptions()
     if self.optionsFrame then
         self.optionsFrame:SetShown(not self.optionsFrame:IsShown())
         return
     end
 
-    -- Create minimal main frame (avoid SetBackdrop for cross-version compatibility)
     local f = CreateFrame("Frame", "MattBetterChatSoundsOptionsFrame", UIParent)
     f:SetSize(520, 520)
     f:SetPoint("CENTER")
@@ -550,16 +505,14 @@ function MattBetterChatSounds:ToggleOptions()
     closeBtn:SetScript("OnLeave", function() cbg:SetColorTexture(0.12, 0.12, 0.12, 1); cborder:SetColorTexture(0.86, 0.14, 0.63, 1) end)
     closeBtn:SetScript("OnClick", function() f:Hide() end)
 
-    -- Minimap button toggle (show if LDBIcon or manual button is available)
     if LDBIcon or addon.minimapButton then
         local minimapCheckbox = CreateFrame("CheckButton", nil, f, "InterfaceOptionsCheckButtonTemplate")
         minimapCheckbox:SetPoint("BOTTOMLEFT", 22, 18)
         minimapCheckbox.Text:SetText("Show Minimap Button")
         minimapCheckbox.Text:SetFont(NAO_FONT_PATH, FONT_SIZES.normal)
         minimapCheckbox.Text:SetTextColor(0.9,0.9,0.9)
-        -- clickable by default
 
-        -- Make a small minimal box like above
+
         do
             local nt = minimapCheckbox:GetNormalTexture()
             if nt then nt:SetTexture(nil); nt:Hide() end
@@ -580,7 +533,6 @@ function MattBetterChatSounds:ToggleOptions()
         mmCheck:SetTexture(nil)
         mmCheck:SetColorTexture(1, 0.1, 0.6, 1)
 
-        -- expose for external updates
         minimapCheckbox.mmCheck = mmCheck
         minimapCheckbox.mmBox = mmBox
 
@@ -607,16 +559,13 @@ function MattBetterChatSounds:ToggleOptions()
             end
         end)
 
-        -- Store reference for updating from right-click toggle
         self.minimapCheckbox = minimapCheckbox
     end
 
     f:Show()
 end
 
--- ============================================================================
 --  SLASH COMMANDS
--- ============================================================================
 SLASH_MATTBETTERCHATSOUNDS1 = "/mbcs"
 SLASH_MATTBETTERCHATSOUNDS2 = "/mattbetterchatsounds"
 SlashCmdList["MATTBETTERCHATSOUNDS"] = function(msg)

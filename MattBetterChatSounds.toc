@@ -2,7 +2,7 @@
 ## Title: Matt's Better Chat Sounds
 ## Notes: Improved chat sounds for different chat types
 ## Author: Seathasky
-## Version: 3.3
+## Version: 3.4
 ## IconTexture: Interface\AddOns\MattBetterChatSounds\Images\bcsicon.png
 ## SavedVariables: MattBetterChatSoundsDB
 
@@ -10,7 +10,4 @@
 ## OptionalDeps: LibStub, LibDataBroker-1.1, LibDBIcon-1.0
 
 # Addon files
-Libs/LibStub/LibStub.lua
-Libs/LibDataBroker-1.1.lua
-Libs/LibDBIcon-1.0.lua
 MattBetterChatSounds.lua
