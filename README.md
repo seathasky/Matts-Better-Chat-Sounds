@@ -5,17 +5,17 @@ Simple, lightweight sound notifications for **Guild**, **Whisper**, **Party**, a
 
 ---
 
-## ✨ Features  
+##  Features  
 - Plays notification sounds when players type in chat.  
 - Separate sounds for Guild, Whisper, Party, and Raid messages.  
 - Enable or disable individual sound types in the options menu.  
 
 ---
 
-## 📦 Installation  
+##  Installation  
 👉 **[Install via CurseForge](https://www.curseforge.com/wow/addons/betterchatsounds)** 
 
 ---
 
-## ⚙️ Options  
+##  Options  
 Type `/mbcs` in chat or click the minimap icon to open the options menu.
