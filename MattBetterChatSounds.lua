@@ -32,6 +32,8 @@ local LDB, LDBIcon
 --  SOUND FILES
 -- ============================================================================
 local SOUND_PATH = "Interface\\AddOns\\MattBetterChatSounds\\Sounds\\"
+local NAO_FONT_PATH = "Interface\\AddOns\\MattBetterChatSounds\\Media\\Naowh.ttf"
+local FONT_SIZES = { title = 18, normal = 12, small = 11 }
 
 -- Shared sound files (work on all versions)
 local soundFiles = {
@@ -142,75 +144,178 @@ RegisterChatEvents()
 --  MINIMAP BUTTON (Optional)
 -- ============================================================================
 local function InitializeMinimapButton()
-    if not LibStub then return false end
-    
-    local success = pcall(function()
+    -- Try to get libraries from LibStub first
+    if LibStub then
         LDB = LibStub:GetLibrary("LibDataBroker-1.1", true)
         LDBIcon = LibStub:GetLibrary("LibDBIcon-1.0", true)
+    end
+    
+    -- If we got both libraries, use the proper LDB approach
+    if LDB and LDBIcon then
+        addon.ChatSoundsLDB = LDB:NewDataObject(addonName, {
+            type = "launcher",
+            text = "Matt Better Chat Sounds",
+            icon = "Interface\\AddOns\\MattBetterChatSounds\\Images\\bcsicon.png",
+            OnClick = function(_, button)
+                if button == "LeftButton" then
+                    addon:ToggleOptions()
+                elseif button == "RightButton" then
+                    addon:ToggleMinimapButton()
+                end
+            end,
+            OnTooltipShow = function(tooltip)
+                tooltip:AddLine("Matt Better Chat Sounds")
+                tooltip:AddLine("|cffffff00Left-click|r to open settings")
+                tooltip:AddLine("|cffffff00Right-click|r to hide minimap button")
+            end,
+        })
+        
+        if not LDBIcon:IsRegistered(addonName) then
+            LDBIcon:Register(addonName, addon.ChatSoundsLDB, MattBetterChatSoundsDB.minimapIcon)
+        end
+        
+        return true
+    end
+    
+    -- Fallback: Create a draggable minimap button if libraries aren't available
+    local rad, cos, sin = math.rad, math.cos, math.sin
+    local function UpdateMinimapButtonPosition(button, angle)
+        local radian = rad(angle or 225)
+        local x = cos(radian) * ((Minimap:GetWidth() / 2) + 5)
+        local y = sin(radian) * ((Minimap:GetHeight() / 2) + 5)
+        button:ClearAllPoints()
+        button:SetPoint("CENTER", Minimap, "CENTER", x, y)
+    end
+    
+    local minimapFrame = CreateFrame("Button", "MattBetterChatSoundsMinimapButton", Minimap)
+    minimapFrame:SetSize(31, 31)
+    minimapFrame:SetFrameStrata("MEDIUM")
+    minimapFrame:SetFrameLevel(8)
+    minimapFrame:SetMovable(true)
+    minimapFrame:EnableMouse(true)
+    minimapFrame:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    minimapFrame:RegisterForDrag("LeftButton")
+    minimapFrame:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
+    
+    -- Store saved position angle (default 225 degrees = bottom-left)
+    MattBetterChatSoundsDB.minimapPos = MattBetterChatSoundsDB.minimapPos or 225
+    UpdateMinimapButtonPosition(minimapFrame, MattBetterChatSoundsDB.minimapPos)
+    
+    -- Border overlay
+    local overlay = minimapFrame:CreateTexture(nil, "OVERLAY")
+    overlay:SetSize(53, 53)
+    overlay:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+    overlay:SetPoint("TOPLEFT", 0, 0)
+    
+    -- Background
+    local bg = minimapFrame:CreateTexture(nil, "BACKGROUND")
+    bg:SetSize(20, 20)
+    bg:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
+    bg:SetPoint("CENTER", 0, 1)
+    
+    -- Icon
+    local icon = minimapFrame:CreateTexture(nil, "ARTWORK")
+    icon:SetSize(20, 20)
+    icon:SetTexture("Interface\\AddOns\\MattBetterChatSounds\\Images\\bcsicon.png")
+    icon:SetPoint("CENTER", 0, 1)
+    
+    -- Dragging
+    minimapFrame:SetScript("OnDragStart", function(self)
+        self:SetScript("OnUpdate", function(self)
+            local mx, my = Minimap:GetCenter()
+            local px, py = GetCursorPosition()
+            local scale = Minimap:GetEffectiveScale()
+            px, py = px / scale, py / scale
+            local angle = math.deg(math.atan2(py - my, px - mx)) % 360
+            MattBetterChatSoundsDB.minimapPos = angle
+            UpdateMinimapButtonPosition(self, angle)
+        end)
     end)
     
-    if not success or not LDB or not LDBIcon then
-        return false
-    end
+    minimapFrame:SetScript("OnDragStop", function(self)
+        self:SetScript("OnUpdate", nil)
+    end)
     
-    addon.ChatSoundsLDB = LDB:NewDataObject(addonName, {
-        type = "launcher",
-        text = "Matt Better Chat Sounds",
-        icon = "Interface\\AddOns\\MattBetterChatSounds\\Images\\BetterChatSounds.tga",
-        OnClick = function(_, button)
-            if button == "LeftButton" then
-                addon:ToggleOptions()
-            elseif button == "RightButton" then
-                -- Toggle minimap button visibility
-                addon:ToggleMinimapButton()
-            end
-        end,
-        OnTooltipShow = function(tooltip)
-            tooltip:AddLine("Matt Better Chat Sounds")
-            tooltip:AddLine("|cffffff00Left-click|r to open settings")
-            tooltip:AddLine("|cffffff00Right-click|r to hide minimap button")
-        end,
-    })
+    minimapFrame:SetScript("OnClick", function(self, button)
+        if button == "LeftButton" then
+            addon:ToggleOptions()
+        elseif button == "RightButton" then
+            addon:ToggleMinimapButton()
+        end
+    end)
     
-    if not LDBIcon:IsRegistered(addonName) then
-        LDBIcon:Register(addonName, addon.ChatSoundsLDB, MattBetterChatSoundsDB.minimapIcon)
-    end
+    minimapFrame:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+        GameTooltip:SetText("Matt Better Chat Sounds")
+        GameTooltip:AddLine("|cffffff00Left-click|r to open settings", 1, 1, 1)
+        GameTooltip:AddLine("|cffffff00Drag|r to move around minimap", 1, 1, 1)
+        GameTooltip:AddLine("|cffffff00Right-click|r to hide", 1, 1, 1)
+        GameTooltip:Show()
+    end)
     
+    minimapFrame:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+    
+    addon.minimapButton = minimapFrame
     return true
 end
 
 -- Toggle minimap button visibility
 function addon:ToggleMinimapButton()
-    if not LDBIcon then return end
-    
     MattBetterChatSoundsDB.minimapIcon = MattBetterChatSoundsDB.minimapIcon or { hide = false }
     MattBetterChatSoundsDB.minimapIcon.hide = not MattBetterChatSoundsDB.minimapIcon.hide
     
-    if MattBetterChatSoundsDB.minimapIcon.hide then
-        LDBIcon:Hide(addonName)
-        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00MBCS|r: Minimap button hidden. Type |cffffff00/mbcs|r to open settings.")
-    else
-        LDBIcon:Show(addonName)
+    if LDBIcon then
+        -- LDB method
+        if MattBetterChatSoundsDB.minimapIcon.hide then
+            LDBIcon:Hide(addonName)
+        else
+            LDBIcon:Show(addonName)
+        end
+    elseif addon.minimapButton then
+        -- Manual button method
+        if MattBetterChatSoundsDB.minimapIcon.hide then
+            addon.minimapButton:Hide()
+        else
+            addon.minimapButton:Show()
+        end
     end
+    
+    DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00MBCS|r: Minimap button " .. (MattBetterChatSoundsDB.minimapIcon.hide and "hidden" or "shown") .. ". Type |cffffff00/mbcs|r to toggle.")
     
     -- Update checkbox if options frame is open
     if self.optionsFrame and self.minimapCheckbox then
         self.minimapCheckbox:SetChecked(not MattBetterChatSoundsDB.minimapIcon.hide)
+        if self.minimapCheckbox.mmCheck and self.minimapCheckbox.mmBox then
+            if not MattBetterChatSoundsDB.minimapIcon.hide then
+                self.minimapCheckbox.mmCheck:Show()
+                self.minimapCheckbox.mmBox:Hide()
+            else
+                self.minimapCheckbox.mmCheck:Hide()
+                self.minimapCheckbox.mmBox:Show()
+            end
+        end
     end
 end
 
 -- Set minimap button visibility (for checkbox)
 function addon:SetMinimapButtonShown(show)
-    if not LDBIcon then return end
-    
     MattBetterChatSoundsDB.minimapIcon = MattBetterChatSoundsDB.minimapIcon or { hide = false }
     MattBetterChatSoundsDB.minimapIcon.hide = not show
     
-    if show then
-        LDBIcon:Show(addonName)
-    else
-        LDBIcon:Hide(addonName)
-        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00MBCS|r: Minimap button hidden. Type |cffffff00/mbcs|r to open settings.")
+    if LDBIcon then
+        if show then
+            LDBIcon:Show(addonName)
+        else
+            LDBIcon:Hide(addonName)
+        end
+    elseif addon.minimapButton then
+        if show then
+            addon.minimapButton:Show()
+        else
+            addon.minimapButton:Hide()
+        end
     end
 end
 
@@ -236,10 +341,10 @@ function MattBetterChatSounds:ToggleOptions()
         self.optionsFrame:SetShown(not self.optionsFrame:IsShown())
         return
     end
-    
-    -- Create main frame
-    local f = CreateFrame("Frame", "MattBetterChatSoundsOptionsFrame", UIParent, "BasicFrameTemplateWithInset")
-    f:SetSize(450, 500)
+
+    -- Create minimal main frame (avoid SetBackdrop for cross-version compatibility)
+    local f = CreateFrame("Frame", "MattBetterChatSoundsOptionsFrame", UIParent)
+    f:SetSize(520, 520)
     f:SetPoint("CENTER")
     f:SetMovable(true)
     f:EnableMouse(true)
@@ -247,21 +352,62 @@ function MattBetterChatSounds:ToggleOptions()
     f:SetScript("OnDragStart", f.StartMoving)
     f:SetScript("OnDragStop", f.StopMovingOrSizing)
     f:SetFrameStrata("DIALOG")
-    
+
     self.optionsFrame = f
-    
-    -- Title
-    local title = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
-    title:SetPoint("TOP", 0, -35)
+
+    -- Background (solid slightly lighter gray)
+    local bg = f:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints(f)
+    bg:SetColorTexture(0.12, 0.12, 0.12, 0.96)
+
+    -- Border (2px dark gray around the frame)
+    local borderTop = f:CreateTexture(nil, "ARTWORK")
+    borderTop:SetPoint("TOPLEFT", f, "TOPLEFT", -2, 2)
+    borderTop:SetPoint("TOPRIGHT", f, "TOPRIGHT", 2, 2)
+    borderTop:SetHeight(2)
+    borderTop:SetColorTexture(0.06, 0.06, 0.06, 1)
+
+    local borderBottom = f:CreateTexture(nil, "ARTWORK")
+    borderBottom:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", -2, -2)
+    borderBottom:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 2, -2)
+    borderBottom:SetHeight(2)
+    borderBottom:SetColorTexture(0.06, 0.06, 0.06, 1)
+
+    local borderLeft = f:CreateTexture(nil, "ARTWORK")
+    borderLeft:SetPoint("TOPLEFT", f, "TOPLEFT", -2, 2)
+    borderLeft:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", -2, -2)
+    borderLeft:SetWidth(2)
+    borderLeft:SetColorTexture(0.06, 0.06, 0.06, 1)
+
+    local borderRight = f:CreateTexture(nil, "ARTWORK")
+    borderRight:SetPoint("TOPRIGHT", f, "TOPRIGHT", 2, 2)
+    borderRight:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 2, -2)
+    borderRight:SetWidth(2)
+    borderRight:SetColorTexture(0.06, 0.06, 0.06, 1)
+
+    -- Top accent bar (pink)
+    local accent = f:CreateTexture(nil, "ARTWORK")
+    accent:SetHeight(4)
+    accent:SetPoint("TOPLEFT", 6, -6)
+    accent:SetPoint("TOPRIGHT", -6, -6)
+    accent:SetColorTexture(0.86, 0.14, 0.63, 1)
+
+    -- Title (pink)
+    local title = f:CreateFontString(nil, "OVERLAY")
+    title:SetPoint("TOP", 0, -18)
+    title:SetFont(NAO_FONT_PATH, FONT_SIZES.title, "OUTLINE")
     title:SetText("Matt's Better Chat Sounds")
-    title:SetTextColor(1, 0.82, 0)
-    
-    -- Description
-    local desc = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    desc:SetPoint("TOP", title, "BOTTOM", 0, -15)
-    desc:SetWidth(400)
-    desc:SetText("Enable or disable sounds for different chat types.\nSounds play through the Dialog audio channel.")
-    
+    title:SetTextColor(0.95, 0.18, 0.6)
+
+    -- Description (light gray)
+    local desc = f:CreateFontString(nil, "OVERLAY")
+    desc:SetPoint("TOP", title, "BOTTOM", 0, -6)
+    desc:SetWidth(480)
+    desc:SetJustifyH("CENTER")
+    desc:SetFont(NAO_FONT_PATH, FONT_SIZES.normal)
+    desc:SetTextColor(0.8, 0.8, 0.8)
+    desc:SetText("Enable or disable sounds for different chat types. Sounds play through the Dialog audio channel.")
+
     -- Build ordered list of events (only show events available for this version)
     local orderedEvents = {
         "CHAT_MSG_WHISPER",
@@ -275,63 +421,196 @@ function MattBetterChatSounds:ToggleOptions()
         "CHAT_MSG_RAID_WARNING",
         "CHAT_MSG_GUILD",
     }
-    
-    -- Create checkboxes
-    local yOffset = -100
+
+    -- Container for options (left column)
+    local container = CreateFrame("Frame", nil, f)
+    container:SetPoint("TOPLEFT", 20, -80)
+    container:SetPoint("BOTTOMRIGHT", -20, 60)
+
+    -- Create checkboxes (minimal styled)
+    local yOffset = -4
     for _, eventKey in ipairs(orderedEvents) do
-        -- Only show options for events available in this version
         if soundFiles[eventKey] then
-            local label = eventLabels[eventKey] or eventKey
-            
-            local checkbox = CreateFrame("CheckButton", nil, f, "InterfaceOptionsCheckButtonTemplate")
-            checkbox:SetPoint("TOPLEFT", 40, yOffset)
+            local key = eventKey
+            local label = eventLabels[key] or key
+
+            -- Checkbox base (use InterfaceOptions template then override visuals)
+            local checkbox = CreateFrame("CheckButton", nil, container, "InterfaceOptionsCheckButtonTemplate")
+            checkbox:SetPoint("TOPLEFT", 6, yOffset)
             checkbox.Text:SetText(label)
-            checkbox.Text:SetFontObject("GameFontNormal")
-            
-            checkbox:SetChecked(MattBetterChatSoundsDB[eventKey] ~= false)
+            checkbox.Text:SetFont(NAO_FONT_PATH, FONT_SIZES.normal)
+            checkbox.Text:SetTextColor(0.9,0.9,0.9)
+
+            -- Remove the default textures so we can draw our own minimal checkbox
+            do
+                local nt = checkbox:GetNormalTexture()
+                if nt then nt:SetTexture(nil); nt:Hide() end
+                local pt = checkbox:GetPushedTexture()
+                if pt then pt:SetTexture(nil); pt:Hide() end
+                local ht = checkbox:GetHighlightTexture()
+                if ht then ht:SetTexture(nil); ht:Hide() end
+                local ct = checkbox:GetCheckedTexture()
+                if ct then ct:SetTexture(nil); ct:Hide() end
+                local dt = checkbox:GetDisabledCheckedTexture()
+                if dt then dt:SetTexture(nil); dt:Hide() end
+            end
+
+            local box = checkbox:CreateTexture(nil, "ARTWORK")
+            box:SetSize(16,16)
+            box:SetPoint("LEFT", checkbox, "LEFT", 0, 0)
+            box:SetColorTexture(0.13,0.13,0.13,1)
+
+            local border = checkbox:CreateTexture(nil, "OVERLAY")
+            border:SetSize(18,18)
+            border:SetPoint("CENTER", box, "CENTER", 0, 0)
+            border:SetColorTexture(0.22,0.22,0.22,1)
+
+            local check = checkbox:CreateTexture(nil, "OVERLAY")
+            check:SetSize(10,10)
+            check:SetPoint("CENTER", box, "CENTER", 0, 0)
+            -- use a solid colored square for a minimal, screenshot-like check
+            check:SetTexture(nil)
+            check:SetColorTexture(1, 0.1, 0.6, 1)
+
+            -- Initialize visible state
+            if MattBetterChatSoundsDB[key] == false then
+                check:Hide()
+                checkbox:SetChecked(false)
+                box:Show()
+                border:Show()
+            else
+                check:Show()
+                checkbox:SetChecked(true)
+                box:Hide()
+                border:Hide()
+            end
+
             checkbox:SetScript("OnClick", function(self)
-                MattBetterChatSoundsDB[eventKey] = self:GetChecked()
+                local v = self:GetChecked()
+                MattBetterChatSoundsDB[key] = v
+                if v then
+                    check:Show()
+                    box:Hide()
+                    border:Hide()
+                else
+                    check:Hide()
+                    box:Show()
+                    border:Show()
+                end
             end)
-            
-            -- Test button for this sound
-            local testBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-            testBtn:SetSize(50, 22)
-            testBtn:SetPoint("LEFT", checkbox.Text, "RIGHT", 10, 0)
+
+            -- Test button (red/gray minimalist style)
+            local testBtn = CreateFrame("Button", nil, container, "UIPanelButtonTemplate")
+            testBtn:SetSize(56, 22)
+            testBtn:SetPoint("LEFT", checkbox.Text, "RIGHT", 12, 0)
             testBtn:SetText("Test")
+
+            -- background and border (gray + pink accents)
+            local tbg = testBtn:CreateTexture(nil, "BACKGROUND")
+            tbg:SetAllPoints(testBtn)
+            tbg:SetColorTexture(0.12, 0.12, 0.12, 1)
+            local tborder = testBtn:CreateTexture(nil, "BORDER")
+            tborder:SetPoint("TOPLEFT", testBtn, "TOPLEFT", -1, 1)
+            tborder:SetPoint("BOTTOMRIGHT", testBtn, "BOTTOMRIGHT", 1, -1)
+            tborder:SetColorTexture(0.86, 0.14, 0.63, 1)
+
+            testBtn:GetFontString():SetFont(NAO_FONT_PATH, FONT_SIZES.normal)
+            testBtn:GetFontString():SetTextColor(1, 1, 1)
+            testBtn:SetScript("OnEnter", function() tbg:SetColorTexture(0.16, 0.16, 0.16, 1); tborder:SetColorTexture(0.98,0.22,0.65,1) end)
+            testBtn:SetScript("OnLeave", function() tbg:SetColorTexture(0.12, 0.12, 0.12, 1); tborder:SetColorTexture(0.86, 0.14, 0.63, 1) end) 
+
             testBtn:SetScript("OnClick", function()
-                local soundFile = soundFiles[eventKey]
+                local soundFile = soundFiles[key]
                 if soundFile then
                     PlaySoundFile(soundFile, "Dialog")
                 end
             end)
-            
-            yOffset = yOffset - 32
+
+            yOffset = yOffset - 30
         end
     end
-    
-    -- Close button
+
+    -- Close button (red/gray style)
     local closeBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    closeBtn:SetSize(100, 25)
-    closeBtn:SetPoint("BOTTOM", 0, 15)
+    closeBtn:SetSize(110, 26)
+    closeBtn:SetPoint("BOTTOM", 0, 16)
     closeBtn:SetText("Close")
+
+    local cbg = closeBtn:CreateTexture(nil, "BACKGROUND")
+    cbg:SetAllPoints(closeBtn)
+    cbg:SetColorTexture(0.12, 0.12, 0.12, 1)
+    local cborder = closeBtn:CreateTexture(nil, "BORDER")
+    cborder:SetPoint("TOPLEFT", closeBtn, "TOPLEFT", -1, 1)
+    cborder:SetPoint("BOTTOMRIGHT", closeBtn, "BOTTOMRIGHT", 1, -1)
+    cborder:SetColorTexture(0.86, 0.14, 0.63, 1)
+
+    closeBtn:GetFontString():SetFont(NAO_FONT_PATH, FONT_SIZES.normal)
+    closeBtn:GetFontString():SetTextColor(1, 1, 1)
+    closeBtn:SetScript("OnEnter", function() cbg:SetColorTexture(0.16,0.16,0.16,1); cborder:SetColorTexture(0.98,0.22,0.65,1) end)
+    closeBtn:SetScript("OnLeave", function() cbg:SetColorTexture(0.12, 0.12, 0.12, 1); cborder:SetColorTexture(0.86, 0.14, 0.63, 1) end)
     closeBtn:SetScript("OnClick", function() f:Hide() end)
-    
-    -- Minimap button toggle (only show if LibDBIcon is available)
-    if LDBIcon then
+
+    -- Minimap button toggle (show if LDBIcon or manual button is available)
+    if LDBIcon or addon.minimapButton then
         local minimapCheckbox = CreateFrame("CheckButton", nil, f, "InterfaceOptionsCheckButtonTemplate")
-        minimapCheckbox:SetPoint("BOTTOMLEFT", 40, 45)
+        minimapCheckbox:SetPoint("BOTTOMLEFT", 22, 18)
         minimapCheckbox.Text:SetText("Show Minimap Button")
-        minimapCheckbox.Text:SetFontObject("GameFontNormal")
-        
-        minimapCheckbox:SetChecked(not (MattBetterChatSoundsDB.minimapIcon and MattBetterChatSoundsDB.minimapIcon.hide))
+        minimapCheckbox.Text:SetFont(NAO_FONT_PATH, FONT_SIZES.normal)
+        minimapCheckbox.Text:SetTextColor(0.9,0.9,0.9)
+        -- clickable by default
+
+        -- Make a small minimal box like above
+        do
+            local nt = minimapCheckbox:GetNormalTexture()
+            if nt then nt:SetTexture(nil); nt:Hide() end
+            local ct = minimapCheckbox:GetCheckedTexture()
+            if ct then ct:SetTexture(nil); ct:Hide() end
+            local dt = minimapCheckbox:GetDisabledCheckedTexture()
+            if dt then dt:SetTexture(nil); dt:Hide() end
+            local ht = minimapCheckbox:GetHighlightTexture()
+            if ht then ht:SetTexture(nil); ht:Hide() end
+        end
+        local mmBox = minimapCheckbox:CreateTexture(nil, "ARTWORK")
+        mmBox:SetSize(16, 16)
+        mmBox:SetPoint("LEFT", minimapCheckbox, "LEFT", 2, 0)
+        mmBox:SetColorTexture(0.35,0.35,0.35,1)
+        local mmCheck = minimapCheckbox:CreateTexture(nil, "OVERLAY")
+        mmCheck:SetSize(11, 11)
+        mmCheck:SetPoint("CENTER", mmBox, "CENTER", 0, 0)
+        mmCheck:SetTexture(nil)
+        mmCheck:SetColorTexture(1, 0.1, 0.6, 1)
+
+        -- expose for external updates
+        minimapCheckbox.mmCheck = mmCheck
+        minimapCheckbox.mmBox = mmBox
+
+        local shown = not (MattBetterChatSoundsDB.minimapIcon and MattBetterChatSoundsDB.minimapIcon.hide)
+        if shown then
+            mmCheck:Show()
+            mmBox:Hide()
+            minimapCheckbox:SetChecked(true)
+        else
+            mmCheck:Hide()
+            mmBox:Show()
+            minimapCheckbox:SetChecked(false)
+        end
+
         minimapCheckbox:SetScript("OnClick", function(self)
-            addon:SetMinimapButtonShown(self:GetChecked())
+            local v = self:GetChecked()
+            addon:SetMinimapButtonShown(v)
+            if v then
+                mmCheck:Show()
+                mmBox:Hide()
+            else
+                mmCheck:Hide()
+                mmBox:Show()
+            end
         end)
-        
+
         -- Store reference for updating from right-click toggle
         self.minimapCheckbox = minimapCheckbox
     end
-    
+
     f:Show()
 end
 
