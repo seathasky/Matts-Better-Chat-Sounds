@@ -51,6 +51,107 @@ local eventLabels = {
     CHAT_MSG_INSTANCE_CHAT_LEADER   = "Instance Leader Chat",
     CHAT_MSG_GUILD                  = "Guild Chat",
 }
+
+local function NormalizeIgnoreWord(word)
+    if not word then return nil end
+    local normalized = strtrim(tostring(word):lower())
+    if normalized == "" then
+        return nil
+    end
+    return normalized
+end
+
+local function EnsureIgnoreWordsTable()
+    MattBetterChatSoundsDB.ignoreWords = MattBetterChatSoundsDB.ignoreWords or {}
+
+    if type(MattBetterChatSoundsDB.ignoreWords) ~= "table" then
+        MattBetterChatSoundsDB.ignoreWords = {}
+        return
+    end
+
+    local hasNumericKeys = false
+    for key in pairs(MattBetterChatSoundsDB.ignoreWords) do
+        if type(key) == "number" then
+            hasNumericKeys = true
+            break
+        end
+    end
+
+    -- Normalize legacy array-style list into a lookup table.
+    if hasNumericKeys then
+        local lookup = {}
+        for _, value in ipairs(MattBetterChatSoundsDB.ignoreWords) do
+            local normalized = NormalizeIgnoreWord(value)
+            if normalized then
+                lookup[normalized] = true
+            end
+        end
+        MattBetterChatSoundsDB.ignoreWords = lookup
+    end
+end
+
+local function MessageContainsIgnoredWord(message)
+    if not message or message == "" then
+        return false
+    end
+
+    EnsureIgnoreWordsTable()
+
+    local lowered = message:lower()
+    for ignoredWord, enabled in pairs(MattBetterChatSoundsDB.ignoreWords) do
+        if enabled and lowered:find(ignoredWord, 1, true) then
+            return true
+        end
+    end
+    return false
+end
+
+local function AddIgnoreWord(word)
+    local normalized = NormalizeIgnoreWord(word)
+    if not normalized then
+        return false, "Please provide a word or phrase to ignore."
+    end
+
+    EnsureIgnoreWordsTable()
+    if MattBetterChatSoundsDB.ignoreWords[normalized] then
+        return false, "'" .. normalized .. "' is already ignored."
+    end
+
+    MattBetterChatSoundsDB.ignoreWords[normalized] = true
+    return true, "'" .. normalized .. "' added to ignore list."
+end
+
+local function RemoveIgnoreWord(word)
+    local normalized = NormalizeIgnoreWord(word)
+    if not normalized then
+        return false, "Please provide a word or phrase to remove."
+    end
+
+    EnsureIgnoreWordsTable()
+    if not MattBetterChatSoundsDB.ignoreWords[normalized] then
+        return false, "'" .. normalized .. "' was not in the ignore list."
+    end
+
+    MattBetterChatSoundsDB.ignoreWords[normalized] = nil
+    return true, "'" .. normalized .. "' removed from ignore list."
+end
+
+local function GetIgnoreWordsList()
+    EnsureIgnoreWordsTable()
+    local words = {}
+    for ignoredWord, enabled in pairs(MattBetterChatSoundsDB.ignoreWords) do
+        if enabled then
+            words[#words + 1] = ignoredWord
+        end
+    end
+    table.sort(words)
+    return words
+end
+
+local function ClearIgnoreWords()
+    MattBetterChatSoundsDB.ignoreWords = {}
+end
+
 local function InitializeDatabase()
     MattBetterChatSoundsDB = MattBetterChatSoundsDB or {}
     
@@ -63,6 +164,8 @@ local function InitializeDatabase()
     if MattBetterChatSoundsDB.minimapIcon == nil then
         MattBetterChatSoundsDB.minimapIcon = { hide = false }
     end
+
+    EnsureIgnoreWordsTable()
 end
 addon.InitializeDatabase = InitializeDatabase
 
@@ -95,7 +198,11 @@ chatFrame:SetScript("OnEvent", function(self, event, message, sender, ...)
         end
 
     end
-    
+
+    if MessageContainsIgnoredWord(message) then
+        return
+    end
+
     PlayChatSound(event)
 end)
 
@@ -299,7 +406,7 @@ function MattBetterChatSounds:ToggleOptions()
     end
 
     local f = CreateFrame("Frame", "MattBetterChatSoundsOptionsFrame", UIParent)
-    f:SetSize(520, 520)
+    f:SetSize(700, 520)
     f:SetPoint("CENTER")
     f:SetMovable(true)
     f:EnableMouse(true)
@@ -357,7 +464,7 @@ function MattBetterChatSounds:ToggleOptions()
     -- Description (light gray)
     local desc = f:CreateFontString(nil, "OVERLAY")
     desc:SetPoint("TOP", title, "BOTTOM", 0, -6)
-    desc:SetWidth(480)
+    desc:SetWidth(650)
     desc:SetJustifyH("CENTER")
     desc:SetFont(NAO_FONT_PATH, FONT_SIZES.normal)
     desc:SetTextColor(0.8, 0.8, 0.8)
@@ -377,10 +484,10 @@ function MattBetterChatSounds:ToggleOptions()
         "CHAT_MSG_GUILD",
     }
 
-    -- Container for options (left column)
+    -- Container for chat sound options (left column)
     local container = CreateFrame("Frame", nil, f)
     container:SetPoint("TOPLEFT", 20, -80)
-    container:SetPoint("BOTTOMRIGHT", -20, 60)
+    container:SetPoint("BOTTOMRIGHT", -250, 60)
 
     -- Create checkboxes (minimal styled)
     local yOffset = -4
@@ -485,6 +592,200 @@ function MattBetterChatSounds:ToggleOptions()
         end
     end
 
+    -- Ignore words panel (right column)
+    local ignorePanel = CreateFrame("Frame", nil, f)
+    ignorePanel:SetPoint("TOPRIGHT", -20, -80)
+    ignorePanel:SetPoint("BOTTOMRIGHT", -20, 60)
+    ignorePanel:SetWidth(210)
+
+    local ignoreTitle = ignorePanel:CreateFontString(nil, "OVERLAY")
+    ignoreTitle:SetPoint("TOPLEFT", 0, 0)
+    ignoreTitle:SetFont(NAO_FONT_PATH, FONT_SIZES.normal, "OUTLINE")
+    ignoreTitle:SetTextColor(0.95, 0.18, 0.6)
+    ignoreTitle:SetText("Ignored Words")
+
+    local ignoreHint = ignorePanel:CreateFontString(nil, "OVERLAY")
+    ignoreHint:SetPoint("TOPLEFT", ignoreTitle, "BOTTOMLEFT", 0, -6)
+    ignoreHint:SetWidth(210)
+    ignoreHint:SetJustifyH("LEFT")
+    ignoreHint:SetFont(NAO_FONT_PATH, FONT_SIZES.small)
+    ignoreHint:SetTextColor(0.75, 0.75, 0.75)
+    ignoreHint:SetText("Messages containing these words/phrases will not play a sound.")
+
+    local ignoreInput = CreateFrame("EditBox", nil, ignorePanel, "InputBoxTemplate")
+    ignoreInput:SetAutoFocus(false)
+    ignoreInput:SetSize(140, 24)
+    ignoreInput:SetPoint("TOPLEFT", ignoreHint, "BOTTOMLEFT", 0, -10)
+    ignoreInput:SetFontObject(GameFontHighlightSmall)
+    ignoreInput:SetTextInsets(6, 6, 0, 0)
+
+    local addBtn = CreateFrame("Button", nil, ignorePanel, "UIPanelButtonTemplate")
+    addBtn:SetSize(60, 24)
+    addBtn:SetPoint("LEFT", ignoreInput, "RIGHT", 8, 0)
+    addBtn:SetText("Add")
+
+    local abg = addBtn:CreateTexture(nil, "BACKGROUND")
+    abg:SetAllPoints(addBtn)
+    abg:SetColorTexture(0.12, 0.12, 0.12, 1)
+    local aborder = addBtn:CreateTexture(nil, "BORDER")
+    aborder:SetPoint("TOPLEFT", addBtn, "TOPLEFT", -1, 1)
+    aborder:SetPoint("BOTTOMRIGHT", addBtn, "BOTTOMRIGHT", 1, -1)
+    aborder:SetColorTexture(0.86, 0.14, 0.63, 1)
+    if addBtn:GetFontString() then
+        addBtn:GetFontString():SetText("")
+    end
+    local addLabel = addBtn:CreateFontString(nil, "OVERLAY")
+    addLabel:SetPoint("CENTER", addBtn, "CENTER", 0, 0)
+    addLabel:SetFont(NAO_FONT_PATH, FONT_SIZES.normal)
+    addLabel:SetTextColor(1, 1, 1)
+    addLabel:SetText("Add")
+    addBtn:SetScript("OnEnter", function() abg:SetColorTexture(0.16, 0.16, 0.16, 1); aborder:SetColorTexture(0.98,0.22,0.65,1) end)
+    addBtn:SetScript("OnLeave", function() abg:SetColorTexture(0.12, 0.12, 0.12, 1); aborder:SetColorTexture(0.86, 0.14, 0.63, 1) end)
+
+    local listFrame = CreateFrame("Frame", nil, ignorePanel)
+    listFrame:SetPoint("TOPLEFT", ignoreInput, "BOTTOMLEFT", 0, -10)
+    listFrame:SetSize(210, 246)
+
+    local listBg = listFrame:CreateTexture(nil, "BACKGROUND")
+    listBg:SetAllPoints(listFrame)
+    listBg:SetColorTexture(0.09, 0.09, 0.09, 1)
+    local listBorder = listFrame:CreateTexture(nil, "BORDER")
+    listBorder:SetPoint("TOPLEFT", listFrame, "TOPLEFT", -1, 1)
+    listBorder:SetPoint("BOTTOMRIGHT", listFrame, "BOTTOMRIGHT", 1, -1)
+    listBorder:SetColorTexture(0.22, 0.22, 0.22, 1)
+
+    local selectedIgnoredWord
+    local ignoredWordRows = {}
+
+    local function RefreshIgnoreWordsUI()
+        local words = GetIgnoreWordsList()
+        if selectedIgnoredWord and not MattBetterChatSoundsDB.ignoreWords[selectedIgnoredWord] then
+            selectedIgnoredWord = nil
+        end
+
+        for i = 1, #ignoredWordRows do
+            local row = ignoredWordRows[i]
+            local word = words[i]
+            row.word = word
+            if word then
+                row.label:SetText(word)
+                row:Show()
+                if selectedIgnoredWord == word then
+                    row.bg:SetColorTexture(0.86, 0.14, 0.63, 0.35)
+                else
+                    row.bg:SetColorTexture(0, 0, 0, 0)
+                end
+            else
+                row.word = nil
+                row.label:SetText("")
+                row.bg:SetColorTexture(0, 0, 0, 0)
+                row:Hide()
+            end
+        end
+    end
+
+    local y = -6
+    for i = 1, 10 do
+        local row = CreateFrame("Button", nil, listFrame)
+        row:SetPoint("TOPLEFT", 6, y)
+        row:SetSize(198, 22)
+        y = y - 23
+
+        row.bg = row:CreateTexture(nil, "BACKGROUND")
+        row.bg:SetAllPoints(row)
+        row.bg:SetColorTexture(0, 0, 0, 0)
+
+        row.label = row:CreateFontString(nil, "OVERLAY")
+        row.label:SetPoint("LEFT", 6, 0)
+        row.label:SetJustifyH("LEFT")
+        row.label:SetWidth(186)
+        row.label:SetFont(NAO_FONT_PATH, FONT_SIZES.small)
+        row.label:SetTextColor(0.9, 0.9, 0.9)
+
+        row:SetScript("OnClick", function(self)
+            if not self.word then return end
+            selectedIgnoredWord = self.word
+            ignoreInput:SetText(self.word)
+            RefreshIgnoreWordsUI()
+        end)
+
+        ignoredWordRows[#ignoredWordRows + 1] = row
+    end
+
+    local removeBtn = CreateFrame("Button", nil, ignorePanel, "UIPanelButtonTemplate")
+    removeBtn:SetSize(100, 24)
+    removeBtn:SetPoint("TOPLEFT", listFrame, "BOTTOMLEFT", 0, -10)
+    removeBtn:SetText("Remove")
+
+    local rbg = removeBtn:CreateTexture(nil, "BACKGROUND")
+    rbg:SetAllPoints(removeBtn)
+    rbg:SetColorTexture(0.12, 0.12, 0.12, 1)
+    local rborder = removeBtn:CreateTexture(nil, "BORDER")
+    rborder:SetPoint("TOPLEFT", removeBtn, "TOPLEFT", -1, 1)
+    rborder:SetPoint("BOTTOMRIGHT", removeBtn, "BOTTOMRIGHT", 1, -1)
+    rborder:SetColorTexture(0.86, 0.14, 0.63, 1)
+    removeBtn:GetFontString():SetFont(NAO_FONT_PATH, FONT_SIZES.normal)
+    removeBtn:GetFontString():SetTextColor(1, 1, 1)
+    removeBtn:SetScript("OnEnter", function() rbg:SetColorTexture(0.16, 0.16, 0.16, 1); rborder:SetColorTexture(0.98,0.22,0.65,1) end)
+    removeBtn:SetScript("OnLeave", function() rbg:SetColorTexture(0.12, 0.12, 0.12, 1); rborder:SetColorTexture(0.86, 0.14, 0.63, 1) end)
+
+    local clearBtn = CreateFrame("Button", nil, ignorePanel, "UIPanelButtonTemplate")
+    clearBtn:SetSize(100, 24)
+    clearBtn:SetPoint("TOPRIGHT", listFrame, "BOTTOMRIGHT", 0, -10)
+    clearBtn:SetText("Clear All")
+
+    local clbg = clearBtn:CreateTexture(nil, "BACKGROUND")
+    clbg:SetAllPoints(clearBtn)
+    clbg:SetColorTexture(0.12, 0.12, 0.12, 1)
+    local clborder = clearBtn:CreateTexture(nil, "BORDER")
+    clborder:SetPoint("TOPLEFT", clearBtn, "TOPLEFT", -1, 1)
+    clborder:SetPoint("BOTTOMRIGHT", clearBtn, "BOTTOMRIGHT", 1, -1)
+    clborder:SetColorTexture(0.86, 0.14, 0.63, 1)
+    clearBtn:GetFontString():SetFont(NAO_FONT_PATH, FONT_SIZES.normal)
+    clearBtn:GetFontString():SetTextColor(1, 1, 1)
+    clearBtn:SetScript("OnEnter", function() clbg:SetColorTexture(0.16, 0.16, 0.16, 1); clborder:SetColorTexture(0.98,0.22,0.65,1) end)
+    clearBtn:SetScript("OnLeave", function() clbg:SetColorTexture(0.12, 0.12, 0.12, 1); clborder:SetColorTexture(0.86, 0.14, 0.63, 1) end)
+
+    local function AddFromInput()
+        local ok, resultMsg = AddIgnoreWord(ignoreInput:GetText())
+        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00MBCS|r: " .. resultMsg)
+        if ok then
+            selectedIgnoredWord = nil
+            ignoreInput:SetText("")
+            RefreshIgnoreWordsUI()
+        end
+    end
+
+    addBtn:SetScript("OnClick", AddFromInput)
+    ignoreInput:SetScript("OnEnterPressed", function(self)
+        AddFromInput()
+        self:ClearFocus()
+    end)
+
+    removeBtn:SetScript("OnClick", function()
+        local target = selectedIgnoredWord
+        if not target or target == "" then
+            target = ignoreInput:GetText()
+        end
+        local ok, resultMsg = RemoveIgnoreWord(target)
+        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00MBCS|r: " .. resultMsg)
+        if ok then
+            selectedIgnoredWord = nil
+            ignoreInput:SetText("")
+            RefreshIgnoreWordsUI()
+        end
+    end)
+
+    clearBtn:SetScript("OnClick", function()
+        ClearIgnoreWords()
+        selectedIgnoredWord = nil
+        ignoreInput:SetText("")
+        RefreshIgnoreWordsUI()
+        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00MBCS|r: Ignore list cleared.")
+    end)
+
+    RefreshIgnoreWordsUI()
+
     -- Close button (red/gray style)
     local closeBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
     closeBtn:SetSize(110, 26)
@@ -569,29 +870,68 @@ end
 SLASH_MATTBETTERCHATSOUNDS1 = "/mbcs"
 SLASH_MATTBETTERCHATSOUNDS2 = "/mattbetterchatsounds"
 SlashCmdList["MATTBETTERCHATSOUNDS"] = function(msg)
-    msg = (msg or ""):lower():trim()
-    
-    if msg == "test" then
+    local rawMsg = strtrim(msg or "")
+    local lowerMsg = rawMsg:lower()
+
+    if lowerMsg == "test" then
         PlaySoundFile(SOUND_PATH .. "bcs.mp3", "Dialog")
-    elseif msg == "status" then
+    elseif lowerMsg == "status" then
         DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00MBCS|r: Sound Status:")
         for eventKey in pairs(soundFiles) do
             local label = eventLabels[eventKey] or eventKey
             local enabled = MattBetterChatSoundsDB[eventKey] ~= false
             DEFAULT_CHAT_FRAME:AddMessage("  " .. label .. ": " .. (enabled and "|cFF00FF00ON|r" or "|cFFFF0000OFF|r"))
         end
-    elseif msg == "minimap" then
+    elseif lowerMsg:find("^ignore") == 1 then
+        local ignoreArgs = strtrim(rawMsg:sub(7))
+        local subcommand, value = ignoreArgs:match("^(%S+)%s*(.-)$")
+        subcommand = (subcommand or ""):lower()
+
+        if subcommand == "" then
+            DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00MBCS|r: Ignore commands:")
+            DEFAULT_CHAT_FRAME:AddMessage("  |cffffff00/mbcs ignore <word or phrase>|r - Add ignore entry")
+            DEFAULT_CHAT_FRAME:AddMessage("  |cffffff00/mbcs ignore add <word or phrase>|r - Add ignore entry")
+            DEFAULT_CHAT_FRAME:AddMessage("  |cffffff00/mbcs ignore remove <word or phrase>|r - Remove ignore entry")
+            DEFAULT_CHAT_FRAME:AddMessage("  |cffffff00/mbcs ignore list|r - Show ignore entries")
+            DEFAULT_CHAT_FRAME:AddMessage("  |cffffff00/mbcs ignore clear|r - Clear ignore list")
+        elseif subcommand == "list" then
+            local words = GetIgnoreWordsList()
+            if #words == 0 then
+                DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00MBCS|r: Ignore list is empty.")
+            else
+                DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00MBCS|r: Ignored words/phrases:")
+                for _, word in ipairs(words) do
+                    DEFAULT_CHAT_FRAME:AddMessage("  - " .. word)
+                end
+            end
+        elseif subcommand == "clear" then
+            ClearIgnoreWords()
+            DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00MBCS|r: Ignore list cleared.")
+        elseif subcommand == "add" then
+            local ok, resultMsg = AddIgnoreWord(value)
+            DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00MBCS|r: " .. resultMsg)
+        elseif subcommand == "remove" or subcommand == "delete" or subcommand == "del" then
+            local ok, resultMsg = RemoveIgnoreWord(value)
+            DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00MBCS|r: " .. resultMsg)
+        else
+            local ok, resultMsg = AddIgnoreWord(ignoreArgs)
+            DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00MBCS|r: " .. resultMsg)
+        end
+    elseif lowerMsg == "minimap" then
         addon:ToggleMinimapButton()
-    elseif msg == "showminimap" then
+    elseif lowerMsg == "showminimap" then
         addon:SetMinimapButtonShown(true)
         DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00MBCS|r: Minimap button shown.")
-    elseif msg == "hideminimap" then
+    elseif lowerMsg == "hideminimap" then
         addon:SetMinimapButtonShown(false)
-    elseif msg == "help" then
+    elseif lowerMsg == "help" then
         DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00MBCS|r: Commands:")
         DEFAULT_CHAT_FRAME:AddMessage("  |cffffff00/mbcs|r - Open settings")
         DEFAULT_CHAT_FRAME:AddMessage("  |cffffff00/mbcs test|r - Play test sound")
         DEFAULT_CHAT_FRAME:AddMessage("  |cffffff00/mbcs status|r - Show sound status")
+        DEFAULT_CHAT_FRAME:AddMessage("  |cffffff00/mbcs ignore <word or phrase>|r - Ignore messages containing it")
+        DEFAULT_CHAT_FRAME:AddMessage("  |cffffff00/mbcs ignore list|r - Show ignored words/phrases")
+        DEFAULT_CHAT_FRAME:AddMessage("  |cffffff00/mbcs ignore remove <word or phrase>|r - Stop ignoring it")
         DEFAULT_CHAT_FRAME:AddMessage("  |cffffff00/mbcs minimap|r - Toggle minimap button")
         DEFAULT_CHAT_FRAME:AddMessage("  |cffffff00/mbcs showminimap|r - Show minimap button")
         DEFAULT_CHAT_FRAME:AddMessage("  |cffffff00/mbcs hideminimap|r - Hide minimap button")
