@@ -15,10 +15,15 @@ local hasBattleNet = isRetail  -- Battle.net whispers only in Retail
 
 
 local LDB, LDBIcon
+local issecretvalue = issecretvalue
 
 local SOUND_PATH = "Interface\\AddOns\\MattBetterChatSounds\\Sounds\\"
 local NAO_FONT_PATH = "Interface\\AddOns\\MattBetterChatSounds\\Media\\Naowh.ttf"
 local FONT_SIZES = { title = 18, normal = 12, small = 11 }
+
+local function NotSecretValue(value)
+    return not issecretvalue or not issecretvalue(value)
+end
 
 local soundFiles = {
     CHAT_MSG_WHISPER        = SOUND_PATH .. "whisper.ogg",
@@ -91,7 +96,7 @@ local function EnsureIgnoreWordsTable()
 end
 
 local function MessageContainsIgnoredWord(message)
-    if not message or message == "" then
+    if not NotSecretValue(message) or type(message) ~= "string" or message == "" then
         return false
     end
 
@@ -193,7 +198,7 @@ chatFrame:SetScript("OnEvent", function(self, event, message, sender, ...)
     local playerName = UnitName("player")
     if sender then
         local success, senderName = pcall(Ambiguate, sender, "short")
-        if success and senderName == playerName then
+        if success and NotSecretValue(senderName) and NotSecretValue(playerName) and senderName == playerName then
             return
         end
 
