@@ -8,7 +8,7 @@ local _, _, _, tocVersion = GetBuildInfo()
 local isRetail = (WOW_PROJECT_ID == WOW_PROJECT_MAINLINE)
 local isClassicEra = (WOW_PROJECT_ID == WOW_PROJECT_CLASSIC)  -- Classic Era Anniversary
 local isTBC = (WOW_PROJECT_ID == (WOW_PROJECT_BURNING_CRUSADE_CLASSIC or 5))  -- TBC Anniversary
-local isMoP = (WOW_PROJECT_ID == (WOW_PROJECT_MISTS_OF_PANDARIA_CLASSIC or 17))  -- MoP Remix
+local isMoP = (WOW_PROJECT_ID == (WOW_PROJECT_MISTS_OF_PANDARIA_CLASSIC or 17))  -- MoP
 local isClassic = isClassicEra or isTBC or isMoP
 local hasInstanceChat = isRetail or isMoP  -- Dungeon Finder available in MoP and Retail
 local hasBattleNet = isRetail  -- Battle.net whispers only in Retail
@@ -27,7 +27,7 @@ end
 
 local soundFiles = {
     CHAT_MSG_WHISPER        = SOUND_PATH .. "whisper.ogg",
-    CHAT_MSG_PARTY          = SOUND_PATH .. "bcs.mp3",
+    CHAT_MSG_PARTY          = SOUND_PATH .. "short_bongo.mp3",
     CHAT_MSG_PARTY_LEADER   = SOUND_PATH .. "text.mp3",
     CHAT_MSG_RAID           = SOUND_PATH .. "bcs.mp3",
     CHAT_MSG_RAID_LEADER    = SOUND_PATH .. "text.mp3",
@@ -40,7 +40,7 @@ if hasBattleNet then
 end
 
 if hasInstanceChat then
-    soundFiles.CHAT_MSG_INSTANCE_CHAT           = SOUND_PATH .. "bcs.mp3"
+    soundFiles.CHAT_MSG_INSTANCE_CHAT           = SOUND_PATH .. "short_bongo.mp3"
     soundFiles.CHAT_MSG_INSTANCE_CHAT_LEADER    = SOUND_PATH .. "text.mp3"
 end
 
