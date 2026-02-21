@@ -11,7 +11,7 @@ local isTBC = (WOW_PROJECT_ID == (WOW_PROJECT_BURNING_CRUSADE_CLASSIC or 5))  --
 local isMoP = (WOW_PROJECT_ID == (WOW_PROJECT_MISTS_OF_PANDARIA_CLASSIC or 17))  -- MoP
 local isClassic = isClassicEra or isTBC or isMoP
 local hasInstanceChat = isRetail or isMoP  -- Dungeon Finder available in MoP and Retail
-local hasBattleNet = isRetail  -- Battle.net whispers only in Retail
+local hasBattleNet = true  -- Battle.net whispers supported across all game versions
 
 
 local LDB, LDBIcon
