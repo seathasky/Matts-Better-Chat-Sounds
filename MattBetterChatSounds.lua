@@ -1,5 +1,8 @@
 
-local addonName = "MattBetterChatSounds"
+local addonName = ...
+if type(addonName) ~= "string" or addonName == "" then
+    addonName = "MattBetterChatSounds"
+end
 MattBetterChatSounds = {}
 local addon = MattBetterChatSounds
 
@@ -17,12 +20,32 @@ local hasBattleNet = true  -- Battle.net whispers supported across all game vers
 local LDB, LDBIcon
 local issecretvalue = issecretvalue
 
-local SOUND_PATH = "Interface\\AddOns\\MattBetterChatSounds\\Sounds\\"
-local NAO_FONT_PATH = "Interface\\AddOns\\MattBetterChatSounds\\Media\\Naowh.ttf"
+local ADDON_PATH = "Interface\\AddOns\\" .. addonName .. "\\"
+local SOUND_PATH = ADDON_PATH .. "Sounds\\"
+local NAO_FONT_PATH = ADDON_PATH .. "Media\\Naowh.ttf"
 local FONT_SIZES = { title = 18, normal = 12, small = 11 }
 
 local function NotSecretValue(value)
     return not issecretvalue or not issecretvalue(value)
+end
+
+local function PlayAddonSound(soundFile)
+    local channels
+    local dialogEnabled = (GetCVar("Sound_EnableDialog") == "1")
+    local dialogVolume = tonumber(GetCVar("Sound_DialogVolume") or "0") or 0
+    if dialogEnabled and dialogVolume > 0 then
+        channels = { "Dialog", "SFX", "Master" }
+    else
+        channels = { "SFX", "Master" }
+    end
+
+    for _, channel in ipairs(channels) do
+        local ok, success = pcall(PlaySoundFile, soundFile, channel)
+        if ok and success then
+            return true, channel
+        end
+    end
+    return false, nil
 end
 
 local soundFiles = {
@@ -169,7 +192,6 @@ local function InitializeDatabase()
     if MattBetterChatSoundsDB.minimapIcon == nil then
         MattBetterChatSoundsDB.minimapIcon = { hide = false }
     end
-
     EnsureIgnoreWordsTable()
 end
 addon.InitializeDatabase = InitializeDatabase
@@ -185,7 +207,7 @@ local function PlayChatSound(event)
         return
     end
     
-    PlaySoundFile(soundFile, "Dialog")
+    PlayAddonSound(soundFile)
 end
 
 -- ============================================================================
@@ -230,7 +252,7 @@ local function InitializeMinimapButton()
         addon.ChatSoundsLDB = LDB:NewDataObject(addonName, {
             type = "launcher",
             text = "Matt Better Chat Sounds",
-            icon = "Interface\\AddOns\\MattBetterChatSounds\\Images\\bcsicon.png",
+            icon = ADDON_PATH .. "Images\\bcsicon.png",
             OnClick = function(_, button)
                 if button == "LeftButton" then
                     addon:ToggleOptions()
@@ -289,7 +311,7 @@ local function InitializeMinimapButton()
     -- Icon
     local icon = minimapFrame:CreateTexture(nil, "ARTWORK")
     icon:SetSize(20, 20)
-    icon:SetTexture("Interface\\AddOns\\MattBetterChatSounds\\Images\\bcsicon.png")
+    icon:SetTexture(ADDON_PATH .. "Images\\bcsicon.png")
     icon:SetPoint("CENTER", 0, 1)
     
     -- Dragging
@@ -400,7 +422,6 @@ loadFrame:SetScript("OnEvent", function(self, event, loadedAddon)
     
     InitializeDatabase()
     InitializeMinimapButton()
-    
     self:UnregisterEvent("ADDON_LOADED")
 end)
 
@@ -589,7 +610,7 @@ function MattBetterChatSounds:ToggleOptions()
             testBtn:SetScript("OnClick", function()
                 local soundFile = soundFiles[key]
                 if soundFile then
-                    PlaySoundFile(soundFile, "Dialog")
+                    PlayAddonSound(soundFile)
                 end
             end)
 
@@ -879,7 +900,7 @@ SlashCmdList["MATTBETTERCHATSOUNDS"] = function(msg)
     local lowerMsg = rawMsg:lower()
 
     if lowerMsg == "test" then
-        PlaySoundFile(SOUND_PATH .. "bcs.mp3", "Dialog")
+        PlayAddonSound(SOUND_PATH .. "bcs.mp3")
     elseif lowerMsg == "status" then
         DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00MBCS|r: Sound Status:")
         for eventKey in pairs(soundFiles) do
