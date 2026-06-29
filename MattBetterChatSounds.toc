@@ -1,8 +1,8 @@
-## Interface: 11508, 11507, 20505, 30405, 38001, 40402, 50503, 50504, 120001, 120005, 120000
+## Interface: 11508, 11507, 20505, 20506, 30405, 38001, 40402, 50503, 50504, 120100, 120005, 120007
 ## Title: Matt's Better Chat Sounds
 ## Notes: Improved chat sounds for different chat types
 ## Author: Seathasky
-## Version: 3.9.1
+## Version: 3.9.2
 ## X-Curse-Project-ID: 342234
 ## IconTexture: Interface\AddOns\MattBetterChatSounds\Images\bcsicon.png
 ## SavedVariables: MattBetterChatSoundsDB
